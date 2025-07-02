@@ -1,0 +1,52 @@
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+endpoints:
+  - path: "/api/users"
+    method: "GET"
+    response:
+      status: 200
+      body: '{"users": [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]}'
+      headers:
+        Content-Type: "application/json"
+  
+  - path: "/api/users"
+    method: "POST"
+    response:
+      status: 201
+      body: '{"message": "User created successfully"}'
+      headers:
+        Content-Type: "application/json"
+  
+  - path: "/api/health"
+    method: "GET"
+    response:
+      status: 200
+      body: '{"status": "OK", "timestamp": "{{.timestamp}}"}'
+      headers:
+        Content-Type: "application/json"
+  
+  - path: "/api/products/{id}"
+    method: "GET"
+    response:
+      status: 200
+      body: '{"id": {{.id}}, "name": "Product {{.id}}", "price": 100}'
+      headers:
+        Content-Type: "application/json"
+
+  - path: "/api/tempo"
+    method: "POST"
+    response:
+      status: 201
+      body: '{"message": "Tempo data created successfully"}'
+      headers:
+        Content-Type: "application/json"
+
+  - path: "/hands/left"
+    method: "POST"
+    response:
+      status: 201
+      body: '{"message": "Left hand data created successfully"}'
+      headers:
+        Content-Type: "application/json"
