@@ -92,6 +92,10 @@ func (ds *DynamicServer) createHandler(endpoint EndpointConfig) http.HandlerFunc
 				if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
 					log.Printf("Request Log: %s", string(logBytes)) // JSON 형태로 로그 출력
 				}
+
+				// 데이터베이스에 저장
+				go saveToDB(endpoint.Path, jsonData, vars)
+
 			} else {
 				// JSON 파싱 실패 시 일반 텍스트로 로그
 				log.Printf("%s %s - %d | Request body: %s", r.Method, r.URL.Path, endpoint.Response.Status, string(bodyBytes))

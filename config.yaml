@@ -15,7 +15,7 @@ endpoints:
     method: "POST"
     response:
       status: 201
-      body: '{"message": "User created successfully"}'
+      body: '{"result": "success"}'
       headers:
         Content-Type: "application/json"
   
@@ -31,7 +31,7 @@ endpoints:
     method: "POST"
     response:
       status: 200
-      body: '{"id": {{.id}}, "name": "Product {{.id}}", "price": 100}'
+      body: '{"result": "success"}'
       headers:
         Content-Type: "application/json"
 
@@ -39,7 +39,7 @@ endpoints:
     method: "POST"
     response:
       status: 201
-      body: '{"message": "Tempo data created successfully"}'
+      body: '{"result": "success"}'
       headers:
         Content-Type: "application/json"
 
@@ -47,6 +47,6 @@ endpoints:
     method: "POST"
     response:
       status: 201
-      body: '{"message": "Left hand data created successfully"}'
+      body: '{"result": "success"}'
       headers:
         Content-Type: "application/json"

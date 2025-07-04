@@ -12,6 +12,7 @@ import (
 )
 
 func main() {
+	setupDatabase()
 	configPath := "config.yaml" // 사용할 설정 파일 경로
 
 	// 설정 파일 로드
