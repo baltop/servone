@@ -28,7 +28,7 @@ endpoints:
         Content-Type: "application/json"
   
   - path: "/api/products/{id}"
-    method: "GET"
+    method: "POST"
     response:
       status: 200
       body: '{"id": {{.id}}, "name": "Product {{.id}}", "price": 100}'
