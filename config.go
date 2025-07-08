@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Database  DatabaseConfig   `yaml:"database"`  // 데이터베이스 관련 설정
 	Server    ServerConfig     `yaml:"server"`    // 서버 관련 설정
+	Kafka     KafkaConfig      `yaml:"kafka"`
 	Endpoints []EndpointConfig `yaml:"endpoints"` // 엔드포인트(라우트) 설정 목록
 }
 
@@ -25,6 +26,11 @@ type DatabaseConfig struct {
 type ServerConfig struct {
 	Port string `yaml:"port"` // 서버 포트 번호
 	Host string `yaml:"host"` // 서버 호스트 주소
+}
+
+// Kafka 관련 설정 구조체
+type KafkaConfig struct {
+	Brokers []string `yaml:"brokers"`
 }
 
 // 각 엔드포인트(라우트)별 설정 구조체

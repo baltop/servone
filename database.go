@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -36,7 +35,7 @@ func setupDatabase(config *Config) {
 	fmt.Println("Table 'client_data' created successfully or already exists.")
 }
 
-func saveToDB(config *Config, url string, data map[string]interface{}, params map[string]string) {
+func saveToDB(config *Config, url string, data map[string]interface{}, params map[string]string, publisher *KafkaPublisher) {
 	connStr := config.Database.ConnectionString
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -45,7 +44,18 @@ func saveToDB(config *Config, url string, data map[string]interface{}, params ma
 	}
 	defer db.Close()
 
-	dataJSON, err := json.Marshal(data)
+	// Merge data and params, prioritizing existing keys in data
+	mergedData := make(map[string]interface{})
+	for k, v := range data {
+		mergedData[k] = v
+	}
+	for k, v := range params {
+		if _, ok := mergedData[k]; !ok {
+			mergedData[k] = v
+		}
+	}
+
+	mergeDataJSON, err := json.Marshal(mergedData)
 	if err != nil {
 		log.Printf("Failed to marshal data to JSON: %v", err)
 		return
@@ -61,8 +71,20 @@ func saveToDB(config *Config, url string, data map[string]interface{}, params ma
 	INSERT INTO client_data (url, data, parameters, created_at)
 	VALUES ($1, $2, $3, $4);`
 
-	_, err = db.Exec(insertSQL, url, dataJSON, paramsJSON, time.Now().UnixNano())
+	// 카프카에 보내는 데이터는 { "data": mergedData, "params": params, "url": url, "received": time.Now().UnixNano() } 형태로 구성
+	kafkaData := map[string]interface{}{
+		"data":     mergedData,
+		"params":   params,
+		"url":      url,
+		"received": time.Now().UnixNano(),
+	}
+
+	_, err = db.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
+	} else {
+		if publisher != nil {
+			publisher.Publish(url, kafkaData)
+		}
 	}
 }

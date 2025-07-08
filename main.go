@@ -22,8 +22,15 @@ func main() {
 
 	setupDatabase(config)
 
+	// Kafka Publisher 생성
+	publisher, err := NewKafkaPublisher(config.Kafka.Brokers)
+	if err != nil {
+		log.Fatalf("Failed to create kafka publisher: %v", err)
+	}
+	defer publisher.Close()
+
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
-	server := NewDynamicServer(config)
+	server := NewDynamicServer(config, publisher)
 
 	// 설정 파일 변경 감시를 위한 watcher 생성
 	watcher, err := NewConfigWatcher(configPath, server)
