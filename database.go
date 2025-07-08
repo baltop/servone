@@ -11,8 +11,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func setupDatabase() {
-	connStr := "postgresql://smart:smart1234@localhost:5432/strange?sslmode=disable"
+func setupDatabase(config *Config) {
+	connStr := config.Database.ConnectionString
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -36,8 +36,8 @@ func setupDatabase() {
 	fmt.Println("Table 'client_data' created successfully or already exists.")
 }
 
-func saveToDB(url string, data map[string]interface{}, params map[string]string) {
-	connStr := "postgresql://smart:smart1234@localhost:5432/strange?sslmode=disable"
+func saveToDB(config *Config, url string, data map[string]interface{}, params map[string]string) {
+	connStr := config.Database.ConnectionString
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Printf("Failed to connect to database for saving data: %v", err)

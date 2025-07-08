@@ -11,8 +11,14 @@ import (
 
 // 전체 설정을 담는 최상위 구조체
 type Config struct {
+	Database  DatabaseConfig   `yaml:"database"`  // 데이터베이스 관련 설정
 	Server    ServerConfig     `yaml:"server"`    // 서버 관련 설정
 	Endpoints []EndpointConfig `yaml:"endpoints"` // 엔드포인트(라우트) 설정 목록
+}
+
+// 데이터베이스 관련 설정 구조체
+type DatabaseConfig struct {
+	ConnectionString string `yaml:"connection_string"` // 데이터베이스 연결 문자열
 }
 
 // 서버 관련 설정 구조체

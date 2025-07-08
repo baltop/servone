@@ -94,7 +94,7 @@ func (ds *DynamicServer) createHandler(endpoint EndpointConfig) http.HandlerFunc
 				}
 
 				// 데이터베이스에 저장
-				go saveToDB(endpoint.Path, jsonData, vars)
+				go saveToDB(ds.config, endpoint.Path, jsonData, vars)
 
 			} else {
 				// JSON 파싱 실패 시 일반 텍스트로 로그

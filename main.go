@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	setupDatabase()
 	configPath := "config.yaml" // 사용할 설정 파일 경로
 
 	// 설정 파일 로드
@@ -20,6 +19,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err) // 설정 파일 로드 실패 시 프로그램 종료
 	}
+
+	setupDatabase(config)
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
 	server := NewDynamicServer(config)

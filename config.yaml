@@ -1,5 +1,8 @@
+database:
+  connection_string: "postgresql://smart:smart1234@localhost:5432/strange?sslmode=disable"
+
 server:
-  port: 8080
+  port: 8090
   host: "0.0.0.0"
 
 endpoints:
