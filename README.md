@@ -19,3 +19,9 @@
   - GET /api/products/{id} - 특정 상품 조회
 
   config.yaml을 수정하면 새로운 엔드포인트가 즉시 반영됩니다.
+
+
+postgres에서 mqtt payload 꺼낼때
+
+SELECT id, topic, encode(payload, 'escape')::text , created_at FROM public.mqtt_messages
+ORDER BY id DESC LIMIT 100

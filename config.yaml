@@ -9,6 +9,10 @@ kafka:
   brokers:
     - "localhost:9092"
 
+mqtt:
+  broker: "tcp://localhost:1883"
+  client_id: "smart-mqtt-client"
+
 endpoints:
   - path: "/api/users"
     method: "GET"

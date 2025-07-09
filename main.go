@@ -9,6 +9,8 @@ import (
 	"os/signal" // OS 시그널 처리용
 	"syscall"   // 시스템 콜 상수
 	"time"      // 시간 관련 기능
+
+	"servone/mqtt"
 )
 
 func main() {
@@ -28,6 +30,13 @@ func main() {
 		log.Fatalf("Failed to create kafka publisher: %v", err)
 	}
 	defer publisher.Close()
+
+	// MQTT Client 생성 및 연결
+	mqttClient, err := mqtt.NewMQTTClient(config.MQTT.Broker, config.MQTT.ClientID, publisher, config)
+	if err != nil {
+		log.Fatalf("Failed to create MQTT client: %v", err)
+	}
+	mqttClient.Subscribe("#") // 모든 토픽 구독
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
 	server := NewDynamicServer(config, publisher)

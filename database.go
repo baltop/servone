@@ -11,6 +11,8 @@ import (
 )
 
 func setupDatabase(config *Config) {
+	setupMQTTDatabase(config)
+
 	connStr := config.Database.ConnectionString
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -86,5 +88,48 @@ func saveToDB(config *Config, url string, data map[string]interface{}, params ma
 		if publisher != nil {
 			publisher.Publish(url, kafkaData)
 		}
+	}
+}
+
+func setupMQTTDatabase(config *Config) {
+	connStr := config.Database.ConnectionString
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS mqtt_messages (
+		id SERIAL PRIMARY KEY,
+		topic TEXT NOT NULL,
+		payload BYTEA,
+		created_at BIGINT
+	);`
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create table: %v", err)
+	}
+
+	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
+}
+
+func (c *Config) SaveMQTTMessage(topic string, payload []byte) {
+	connStr := c.Database.ConnectionString
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Printf("Failed to connect to database for saving data: %v", err)
+		return
+	}
+	defer db.Close()
+
+	insertSQL := `
+	INSERT INTO mqtt_messages (topic, payload, created_at)
+	VALUES ($1, $2, $3);`
+
+	_, err = db.Exec(insertSQL, topic, payload, time.Now().UnixNano())
+	if err != nil {
+		log.Printf("Failed to insert data into database: %v", err)
 	}
 }

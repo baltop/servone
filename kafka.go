@@ -55,8 +55,18 @@ func (p *KafkaPublisher) Publish(topic string, data map[string]interface{}) {
 
 	ctx := context.Background()
 
+	// Sanitize topic name for both MQTT and other messages
+	sanitizedTopic := sanitizeTopic(topic)
+
+	// Add 'mq.' prefix for MQTT topics
+	if strings.HasPrefix(topic, "mq.") {
+		sanitizedTopic = "mq." + sanitizeTopic(strings.TrimPrefix(topic, "mq."))
+	} else {
+		sanitizedTopic = sanitizeTopic(topic)
+	}
+
 	record := &kgo.Record{
-		Topic: sanitizeTopic(topic),
+		Topic: sanitizedTopic,
 		Value: jsonData,
 	}
 

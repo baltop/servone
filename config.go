@@ -11,10 +11,17 @@ import (
 
 // 전체 설정을 담는 최상위 구조체
 type Config struct {
-	Database  DatabaseConfig   `yaml:"database"`  // 데이터베이스 관련 설정
-	Server    ServerConfig     `yaml:"server"`    // 서버 관련 설정
+	Database  DatabaseConfig   `yaml:"database"` // 데이터베이스 관련 설정
+	Server    ServerConfig     `yaml:"server"`   // 서버 관련 설정
 	Kafka     KafkaConfig      `yaml:"kafka"`
+	MQTT      MQTTConfig       `yaml:"mqtt"`
 	Endpoints []EndpointConfig `yaml:"endpoints"` // 엔드포인트(라우트) 설정 목록
+}
+
+// MQTT 관련 설정 구조체
+type MQTTConfig struct {
+	Broker   string `yaml:"broker"`
+	ClientID string `yaml:"client_id"`
 }
 
 // 데이터베이스 관련 설정 구조체
