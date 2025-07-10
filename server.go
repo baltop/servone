@@ -15,6 +15,7 @@ import (
 	"time"          // 시간 관련
 
 	"github.com/gorilla/mux" // 라우터
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // 동적으로 라우트와 응답을 처리하는 서버 구조체
@@ -51,6 +52,8 @@ func (ds *DynamicServer) setupRoutes() {
 	for _, endpoint := range ds.config.Endpoints {
 		ds.addRoute(endpoint)
 	}
+	ds.router.Handle("/metrics", promhttp.Handler()).Methods("GET")
+	log.Printf("Added route: GET /metrics")
 }
 
 // 단일 엔드포인트를 라우터에 등록하는 함수

@@ -25,3 +25,6 @@ postgres에서 mqtt payload 꺼낼때
 
 SELECT id, topic, encode(payload, 'escape')::text , created_at FROM public.mqtt_messages
 ORDER BY id DESC LIMIT 100
+
+
+        docker kill -s SIGHUP [prometheus_container]
