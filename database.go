@@ -10,17 +10,29 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func setupDatabase(config *Config) {
-	setupMQTTDatabase(config)
+var dbPool *sql.DB
 
-	connStr := config.Database.ConnectionString
-	db, err := sql.Open("postgres", connStr)
+func InitDB(connStr string) error {
+	var err error
+	dbPool, err = sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
 
-	createTableSQL := `
+	dbPool.SetMaxOpenConns(25)
+	dbPool.SetMaxIdleConns(25)
+	dbPool.SetConnMaxLifetime(5 * time.Minute)
+
+	if err = dbPool.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	fmt.Println("Database connection pool established.")
+	return nil
+}
+
+func setupDatabase() {
+	createClientDataTableSQL := `
 	CREATE TABLE IF NOT EXISTS client_data (
 		id SERIAL PRIMARY KEY,
 		url TEXT NOT NULL,
@@ -29,23 +41,28 @@ func setupDatabase(config *Config) {
 		created_at BIGINT
 	);`
 
-	_, err = db.Exec(createTableSQL)
+	_, err := dbPool.Exec(createClientDataTableSQL)
 	if err != nil {
-		log.Fatalf("Failed to create table: %v", err)
+		log.Fatalf("Failed to create 'client_data' table: %v", err)
 	}
-
 	fmt.Println("Table 'client_data' created successfully or already exists.")
+
+	createMQTTMessagesTableSQL := `
+	CREATE TABLE IF NOT EXISTS mqtt_messages (
+		id SERIAL PRIMARY KEY,
+		topic TEXT NOT NULL,
+		payload TEXT,
+		created_at BIGINT
+	);`
+
+	_, err = dbPool.Exec(createMQTTMessagesTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create 'mqtt_messages' table: %v", err)
+	}
+	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
 }
 
 func saveToDB(config *Config, url string, data map[string]interface{}, params map[string]string, publisher *KafkaPublisher) {
-	connStr := config.Database.ConnectionString
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Printf("Failed to connect to database for saving data: %v", err)
-		return
-	}
-	defer db.Close()
-
 	// Merge data and params, prioritizing existing keys in data
 	mergedData := make(map[string]interface{})
 	for k, v := range data {
@@ -73,7 +90,6 @@ func saveToDB(config *Config, url string, data map[string]interface{}, params ma
 	INSERT INTO client_data (url, data, parameters, created_at)
 	VALUES ($1, $2, $3, $4);`
 
-	// 카프카에 보내는 데이터는 { "data": mergedData, "params": params, "url": url, "received": time.Now().UnixNano() } 형태로 구성
 	kafkaData := map[string]interface{}{
 		"data":     mergedData,
 		"params":   params,
@@ -81,7 +97,7 @@ func saveToDB(config *Config, url string, data map[string]interface{}, params ma
 		"received": time.Now().UnixNano(),
 	}
 
-	_, err = db.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
+	_, err = dbPool.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	} else {
@@ -91,44 +107,12 @@ func saveToDB(config *Config, url string, data map[string]interface{}, params ma
 	}
 }
 
-func setupMQTTDatabase(config *Config) {
-	connStr := config.Database.ConnectionString
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS mqtt_messages (
-		id SERIAL PRIMARY KEY,
-		topic TEXT NOT NULL,
-		payload TEXT,
-		created_at BIGINT
-	);`
-
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		log.Fatalf("Failed to create table: %v", err)
-	}
-
-	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
-}
-
 func (c *Config) SaveMQTTMessage(topic string, payload string, receivedTime int64) {
-	connStr := c.Database.ConnectionString
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Printf("Failed to connect to database for saving data: %v", err)
-		return
-	}
-	defer db.Close()
-
 	insertSQL := `
 	INSERT INTO mqtt_messages (topic, payload, created_at)
 	VALUES ($1, $2, $3);`
 
-	_, err = db.Exec(insertSQL, topic, payload, receivedTime)
+	_, err := dbPool.Exec(insertSQL, topic, payload, receivedTime)
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	}

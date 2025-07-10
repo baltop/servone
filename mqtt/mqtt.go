@@ -43,7 +43,7 @@ func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher
 
 func (c *MQTTClient) Subscribe(topic string) {
 	token := c.client.Subscribe(topic, 1, func(client mqtt.Client, msg mqtt.Message) {
-		log.Printf("Received message on topic: %s", msg.Topic())
+		log.Printf("Received message on topic: %s and message : %s", msg.Topic(), string(msg.Payload()))
 		receivedTime := time.Now().UnixNano()
 		// Save to DB
 		c.dbConfig.SaveMQTTMessage(msg.Topic(), string(msg.Payload()), receivedTime)

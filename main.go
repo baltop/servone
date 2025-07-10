@@ -22,7 +22,11 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err) // 설정 파일 로드 실패 시 프로그램 종료
 	}
 
-	setupDatabase(config)
+	if err := InitDB(config.Database.ConnectionString); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	setupDatabase()
 
 	// Kafka Publisher 생성
 	publisher, err := NewKafkaPublisher(config.Kafka.Brokers)
