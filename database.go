@@ -62,7 +62,7 @@ func setupDatabase() {
 	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
 }
 
-func saveToDB(url string, data map[string]interface{}, params map[string]string, publisher *KafkaPublisher) {
+func saveToDB(db *sql.DB, url string, data map[string]interface{}, params map[string]string, publisher KafkaPublisherInterface) {
 	// Merge data and params, prioritizing existing keys in data
 	mergedData := make(map[string]interface{})
 	for k, v := range data {
@@ -97,12 +97,14 @@ func saveToDB(url string, data map[string]interface{}, params map[string]string,
 		"received": time.Now().UnixNano(),
 	}
 
-	_, err = dbPool.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
+	_, err = db.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	} else {
 		if publisher != nil {
-			publisher.Publish(url, kafkaData)
+			// Sanitize the topic before publishing
+			topic := sanitizeTopic(url)
+			publisher.Publish(topic, kafkaData)
 		}
 	}
 }

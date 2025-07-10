@@ -44,9 +44,10 @@ func main() {
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
 	server := NewDynamicServer(config, publisher)
+	coapServer := NewCoapServer(config, publisher, dbPool)
 
 	// 설정 파일 변경 감시를 위한 watcher 생성
-	watcher, err := NewConfigWatcher(configPath, server)
+	watcher, err := NewConfigWatcher(configPath, server, coapServer)
 	if err != nil {
 		log.Fatalf("Failed to create config watcher: %v", err)
 	}
@@ -71,6 +72,9 @@ func main() {
 
 	<-sigChan                              // 시그널이 들어올 때까지 대기
 	log.Println("Shutting down server...") // 종료 로그 출력
+
+	// CoAP 서버 종료
+	coapServer.Stop()
 
 	// 서버 정상 종료를 위한 컨텍스트(최대 30초 대기)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

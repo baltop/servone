@@ -13,9 +13,16 @@ import (
 type Config struct {
 	Database  DatabaseConfig   `yaml:"database"` // 데이터베이스 관련 설정
 	Server    ServerConfig     `yaml:"server"`   // 서버 관련 설정
+	Coap      CoapConfig       `yaml:"coap"`
 	Kafka     KafkaConfig      `yaml:"kafka"`
 	MQTT      MQTTConfig       `yaml:"mqtt"`
 	Endpoints []EndpointConfig `yaml:"endpoints"` // 엔드포인트(라우트) 설정 목록
+}
+
+// CoAP 관련 설정 구조체
+type CoapConfig struct {
+	Port string `yaml:"port"` // CoAP 서버 포트 번호
+	Host string `yaml:"host"` // CoAP 서버 호스트 주소
 }
 
 // MQTT 관련 설정 구조체

@@ -28,3 +28,6 @@ ORDER BY id DESC LIMIT 100
 
 
         docker kill -s SIGHUP [prometheus_container]
+
+
+echo -n 'hello world' | coap post coap://localhost/hands/left        

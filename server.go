@@ -24,12 +24,12 @@ type DynamicServer struct {
 	router    *mux.Router               // HTTP 라우터
 	server    *http.Server              // HTTP 서버 인스턴스
 	pathVars  map[string]*regexp.Regexp // 경로 변수에 대한 정규표현식 매핑
-	publisher *KafkaPublisher
+	publisher KafkaPublisherInterface
 }
 
 // DynamicServer 생성자 함수
 // config: 서버 설정 구조체
-func NewDynamicServer(config *Config, publisher *KafkaPublisher) *DynamicServer {
+func NewDynamicServer(config *Config, publisher KafkaPublisherInterface) *DynamicServer {
 	ds := &DynamicServer{
 		config:    config,
 		router:    mux.NewRouter(), // 새로운 라우터 생성
@@ -99,7 +99,7 @@ func (ds *DynamicServer) createHandler(endpoint EndpointConfig) http.HandlerFunc
 				}
 
 				// 데이터베이스에 저장
-				go func() { saveToDB(endpoint.Path, jsonData, vars, ds.publisher) }()
+				go func() { saveToDB(dbPool, endpoint.Path, jsonData, vars, ds.publisher) }()
 
 			} else {
 				// JSON 파싱 실패 시 일반 텍스트로 로그

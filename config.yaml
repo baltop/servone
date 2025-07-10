@@ -2,8 +2,12 @@ database:
   connection_string: "postgresql://smart:smart1234@localhost:5432/strange?sslmode=disable"
 
 server:
-  port: 8090
   host: "0.0.0.0"
+  port: "8090"
+
+coap:
+  host: "0.0.0.0"
+  port: "5683"
 
 kafka:
   brokers:

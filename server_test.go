@@ -44,7 +44,15 @@ func TestDynamicServer(t *testing.T) {
 		},
 	}
 
-	ds := NewDynamicServer(config, nil) // Kafka publisher is nil for this test
+	// Mock Kafka publisher
+	mockPublisher := &MockKafkaPublisher{
+		PublishFunc: func(topic string, data map[string]interface{}) {
+			// For testing, we can log or check the published data.
+			// In this test, we just need to avoid a nil pointer dereference.
+		},
+	}
+
+	ds := NewDynamicServer(config, mockPublisher)
 
 	t.Run("Basic GET request", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "/hello", nil)

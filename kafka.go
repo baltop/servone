@@ -10,73 +10,61 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+// KafkaPublisher is a struct for publishing messages to Kafka.
 type KafkaPublisher struct {
 	client *kgo.Client
 }
 
+// NewKafkaPublisher creates a new Kafka publisher client.
 func NewKafkaPublisher(brokers []string) (*KafkaPublisher, error) {
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(brokers...),
-		kgo.AllowAutoTopicCreation(),
 	}
+
 	client, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, err
 	}
+
 	return &KafkaPublisher{client: client}, nil
 }
 
-// sanitizeTopic transforms the topic name as follows:
-// - The first '/' is replaced with 'bz.'
-// - All subsequent '/' are replaced with '.'
-// - All special characters except '_', '-', and '.' are removed
-func sanitizeTopic(topic string) string {
-	if len(topic) == 0 {
-		return topic
-	}
-	// Replace the first '/' with 'bz.'
-	if topic[0] == '/' {
-		topic = "bz." + topic[1:]
-	}
-	// Replace all remaining '/' with '.'
-	topic = strings.ReplaceAll(topic, "/", ".")
-	// Remove all special characters except '_', '-', and '.'
-	re := regexp.MustCompile(`[^a-zA-Z0-9_.-]`)
-	topic = re.ReplaceAllString(topic, "")
-	return topic
-}
-
+// Publish sends a message to a Kafka topic.
 func (p *KafkaPublisher) Publish(topic string, data map[string]interface{}) {
-	jsonData, err := json.Marshal(data)
+	sanitizedTopic := sanitizeTopic(topic)
+
+	payload, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("Failed to marshal data for Kafka: %v", err)
 		return
 	}
 
-	ctx := context.Background()
-
-	// Sanitize topic name for both MQTT and other messages
-	sanitizedTopic := sanitizeTopic(topic)
-
-	// Add 'mq.' prefix for MQTT topics
-	if strings.HasPrefix(topic, "mq.") {
-		sanitizedTopic = "mq." + sanitizeTopic(strings.TrimPrefix(topic, "mq."))
-	} else {
-		sanitizedTopic = sanitizeTopic(topic)
-	}
-
-	record := &kgo.Record{
-		Topic: sanitizedTopic,
-		Value: jsonData,
-	}
-
-	p.client.Produce(ctx, record, func(r *kgo.Record, err error) {
+	record := &kgo.Record{Topic: sanitizedTopic, Value: payload}
+	p.client.Produce(context.Background(), record, func(r *kgo.Record, err error) {
 		if err != nil {
 			log.Printf("Failed to produce message to Kafka: %v", err)
 		}
 	})
 }
 
+// Close closes the Kafka client.
 func (p *KafkaPublisher) Close() {
 	p.client.Close()
+}
+
+// sanitizeTopic prepares a topic name to be compliant with Kafka's naming rules.
+func sanitizeTopic(topic string) string {
+	topic = strings.TrimPrefix(topic, "/")
+	topic = strings.ReplaceAll(topic, "/", ".")
+
+	// Kafka topics can only contain letters, numbers, periods, underscores, and dashes.
+	reg := regexp.MustCompile("[^a-zA-Z0-9._-]|")
+	topic = reg.ReplaceAllString(topic, "")
+
+	// Add a prefix to avoid potential conflicts with internal topics.
+	if !strings.HasPrefix(topic, "bz.") {
+		topic = "bz." + topic
+	}
+
+	return topic
 }

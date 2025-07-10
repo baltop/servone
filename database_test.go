@@ -23,9 +23,9 @@ func setupTestDB(t *testing.T) *sql.DB {
 	}
 
 	t.Cleanup(func() {
-		_, err := db.Exec(`TRUNCATE client_data RESTART IDENTITY`)
+		_, err := db.Exec(`TRUNCATE client_data, mqtt_messages RESTART IDENTITY`)
 		if err != nil {
-			t.Logf("Failed to truncate client_data table: %v", err)
+			t.Logf("Failed to truncate tables: %v", err)
 		}
 		db.Close()
 	})
@@ -48,7 +48,7 @@ func Test_saveToDB(t *testing.T) {
 		params := map[string]string{"param1": "value1"}
 
 		var _ *Config = config
-		saveToDB(url, data, params, nil) // publisher is nil for this test
+		saveToDB(db, url, data, params, nil) // publisher is nil for this test
 
 		// Verify the data was saved
 		var ( // Explicitly declare types for clarity

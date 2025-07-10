@@ -131,22 +131,27 @@ func Test_sanitizeTopic(t *testing.T) {
 		{
 			name: "topic with multiple /",
 			args: args{topic: "my/topic/with/slashes"},
-			want: "my.topic.with.slashes",
+			want: "bz.my.topic.with.slashes",
 		},
 		{
 			name: "topic with special characters",
 			args: args{topic: "my_topic-with.special$chars!"},
-			want: "my_topic-with.specialchars",
+			want: "bz.my_topic-with.specialchars",
 		},
 		{
 			name: "empty topic",
 			args: args{topic: ""},
-			want: "",
+			want: "bz.",
 		},
 		{
 			name: "topic with no slashes or special characters",
 			args: args{topic: "normaltopic"},
-			want: "normaltopic",
+			want: "bz.normaltopic",
+		},
+		{
+			name: "topic already prefixed",
+			args: args{topic: "bz.prefixed.topic"},
+			want: "bz.prefixed.topic",
 		},
 	}
 	for _, tt := range tests {
