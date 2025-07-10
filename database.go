@@ -62,7 +62,7 @@ func setupDatabase() {
 	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
 }
 
-func saveToDB(config *Config, url string, data map[string]interface{}, params map[string]string, publisher *KafkaPublisher) {
+func saveToDB(url string, data map[string]interface{}, params map[string]string, publisher *KafkaPublisher) {
 	// Merge data and params, prioritizing existing keys in data
 	mergedData := make(map[string]interface{})
 	for k, v := range data {

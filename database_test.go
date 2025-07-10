@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -13,12 +12,10 @@ import (
 const testDBConnectionString = "postgresql://smart:smart1234@localhost:5432/strange?sslmode=disable"
 
 func setupTestDB(t *testing.T) *sql.DB {
-	config := &Config{
-		Database: DatabaseConfig{
-			ConnectionString: testDBConnectionString,
-		},
+	if err := InitDB(testDBConnectionString); err != nil {
+		t.Fatalf("Failed to initialize test database: %v", err)
 	}
-	setupDatabase(config)
+	setupDatabase()
 
 	db, err := sql.Open("postgres", testDBConnectionString)
 	if err != nil {
@@ -50,15 +47,16 @@ func Test_saveToDB(t *testing.T) {
 		data := map[string]interface{}{"key": "value"}
 		params := map[string]string{"param1": "value1"}
 
-		saveToDB(config, url, data, params, nil) // publisher is nil for this test
+		var _ *Config = config
+		saveToDB(url, data, params, nil) // publisher is nil for this test
 
 		// Verify the data was saved
 		var ( // Explicitly declare types for clarity
-			id         int
-			savedURL   string
-			savedData  []byte
+			id          int
+			savedURL    string
+			savedData   []byte
 			savedParams []byte
-			createdAt  int64
+			createdAt   int64
 		)
 
 		row := db.QueryRow("SELECT id, url, data, parameters, created_at FROM client_data WHERE url = $1", url)

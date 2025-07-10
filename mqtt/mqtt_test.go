@@ -19,13 +19,15 @@ func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) 
 
 // MockDBConfig for testing
 type MockDBConfig struct {
-	SavedTopic  string
-	SavedPayload []byte
+	SavedTopic    string
+	SavedPayload  string
+	SavedTimestamp int64
 }
 
-func (m *MockDBConfig) SaveMQTTMessage(topic string, payload []byte) {
+func (m *MockDBConfig) SaveMQTTMessage(topic string, payload string, timestamp int64) {
 	m.SavedTopic = topic
 	m.SavedPayload = payload
+	m.SavedTimestamp = timestamp
 }
 
 func TestNewMQTTClient(t *testing.T) {
