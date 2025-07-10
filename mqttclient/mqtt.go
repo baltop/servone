@@ -1,7 +1,9 @@
-package mqtt
+package mqttclient
 
 import (
 	"log"
+	"servone/config"
+	"servone/db"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -10,18 +12,13 @@ import (
 type MQTTClient struct {
 	client         mqtt.Client
 	kafkaPublisher KafkaPublisher
-	dbConfig       DBConfig
 }
 
 type KafkaPublisher interface {
 	Publish(topic string, data map[string]interface{})
 }
 
-type DBConfig interface {
-	SaveMQTTMessage(topic string, payload string, receivedTime int64)
-}
-
-func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher, dbConfig DBConfig) (*MQTTClient, error) {
+func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher, dbConfig *config.Config) (*MQTTClient, error) {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(broker)
 	opts.SetClientID(clientID)
@@ -37,7 +34,6 @@ func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher
 	return &MQTTClient{
 		client:         client,
 		kafkaPublisher: kafkaPublisher,
-		dbConfig:       dbConfig,
 	}, nil
 }
 
@@ -46,7 +42,7 @@ func (c *MQTTClient) Subscribe(topic string) {
 		log.Printf("Received message on topic: %s and message : %s", msg.Topic(), string(msg.Payload()))
 		receivedTime := time.Now().UnixNano()
 		// Save to DB
-		c.dbConfig.SaveMQTTMessage(msg.Topic(), string(msg.Payload()), receivedTime)
+		db.SaveMQTTMessage(msg.Topic(), string(msg.Payload()), receivedTime)
 
 		// Publish to Kafka
 		kafkaTopic := "mq." + msg.Topic()

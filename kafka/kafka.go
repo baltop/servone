@@ -1,4 +1,4 @@
-package main
+package kafka
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func NewKafkaPublisher(brokers []string) (*KafkaPublisher, error) {
 
 // Publish sends a message to a Kafka topic.
 func (p *KafkaPublisher) Publish(topic string, data map[string]interface{}) {
-	sanitizedTopic := sanitizeTopic(topic)
+	sanitizedTopic := SanitizeTopic(topic)
 
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -53,7 +53,7 @@ func (p *KafkaPublisher) Close() {
 }
 
 // sanitizeTopic prepares a topic name to be compliant with Kafka's naming rules.
-func sanitizeTopic(topic string) string {
+func SanitizeTopic(topic string) string {
 	topic = strings.TrimPrefix(topic, "/")
 	topic = strings.ReplaceAll(topic, "/", ".")
 

@@ -1,5 +1,4 @@
-// 설정 파일을 처리하는 패키지
-package main
+package config
 
 // yaml 파일 파싱을 위한 패키지와 파일 입출력 패키지 임포트
 import (

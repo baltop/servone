@@ -1,8 +1,9 @@
-package main
+package db
 
 import (
 	"database/sql"
 	"encoding/json"
+	"servone/config"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if err := InitDB(testDBConnectionString); err != nil {
 		t.Fatalf("Failed to initialize test database: %v", err)
 	}
-	setupDatabase()
+	SetupDatabase()
 
 	db, err := sql.Open("postgres", testDBConnectionString)
 	if err != nil {
@@ -36,8 +37,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 func Test_saveToDB(t *testing.T) {
 	db := setupTestDB(t)
 
-	config := &Config{
-		Database: DatabaseConfig{
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
 			ConnectionString: testDBConnectionString,
 		},
 	}
@@ -47,8 +48,8 @@ func Test_saveToDB(t *testing.T) {
 		data := map[string]interface{}{"key": "value"}
 		params := map[string]string{"param1": "value1"}
 
-		var _ *Config = config
-		saveToDB(db, url, data, params, nil) // publisher is nil for this test
+		var _ *config.Config = cfg
+		SaveToDB(url, data, params, nil) // publisher is nil for this test
 
 		// Verify the data was saved
 		var ( // Explicitly declare types for clarity

@@ -1,5 +1,4 @@
-
-package main
+package kafka
 
 import (
 	"context"
@@ -11,9 +10,9 @@ import (
 )
 
 const (
-	testKafkaBroker = "localhost:9092"
+	testKafkaBroker    = "localhost:9092"
 	invalidKafkaBroker = "localhost:9999"
-	testTopic       = "test-topic-publish"
+	testTopic          = "test-topic-publish"
 )
 
 func TestNewKafkaPublisher(t *testing.T) {
@@ -75,7 +74,7 @@ func TestKafkaPublisher_Publish(t *testing.T) {
 			"message": "hello world",
 			"id":      123,
 		}
-		
+
 		// Publish the message
 		publisher.Publish(testTopic, testData)
 
@@ -87,7 +86,7 @@ func TestKafkaPublisher_Publish(t *testing.T) {
 		if fetches.IsClientClosed() || ctx.Err() != nil {
 			t.Fatalf("Consumer closed or context timed out while waiting for message: %v", ctx.Err())
 		}
-		
+
 		errs := fetches.Errors()
 		if len(errs) > 0 {
 			t.Fatalf("Failed to fetch messages: %v", errs)
@@ -100,7 +99,7 @@ func TestKafkaPublisher_Publish(t *testing.T) {
 				t.Logf("Failed to unmarshal received message: %v", err)
 				return
 			}
-			
+
 			// Simple comparison
 			if receivedData["message"] == "hello world" {
 				found = true
@@ -112,7 +111,6 @@ func TestKafkaPublisher_Publish(t *testing.T) {
 		}
 	})
 }
-
 
 func Test_sanitizeTopic(t *testing.T) {
 	type args struct {
@@ -156,8 +154,8 @@ func Test_sanitizeTopic(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := sanitizeTopic(tt.args.topic); got != tt.want {
-				t.Errorf("sanitizeTopic() = %v, want %v", got, tt.want)
+			if got := SanitizeTopic(tt.args.topic); got != tt.want {
+				t.Errorf("SanitizeTopic() = %v, want %v", got, tt.want)
 			}
 		})
 	}

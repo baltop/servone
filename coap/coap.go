@@ -1,11 +1,14 @@
-package main
+package coap
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
+
+	"servone/config"
+	"servone/db"
+	"servone/kafka"
 	"strconv"
 	"strings"
 	"text/template"
@@ -19,19 +22,17 @@ import (
 
 // CoapServer 구조체는 CoAP 서버의 상태를 관리합니다.
 type CoapServer struct {
-	config    *Config
+	config    *config.Config
 	router    *mux.Router
-	publisher KafkaPublisherInterface
-	db        *sql.DB
+	publisher kafka.KafkaPublisherInterface
 }
 
 // NewCoapServer는 새로운 CoapServer 인스턴스를 생성하고 초기화합니다.
-func NewCoapServer(config *Config, publisher KafkaPublisherInterface, db *sql.DB) *CoapServer {
+func NewCoapServer(cfg *config.Config, publisher kafka.KafkaPublisherInterface) *CoapServer {
 	cs := &CoapServer{
-		config:    config,
+		config:    cfg,
 		router:    mux.NewRouter(),
 		publisher: publisher,
-		db:        db,
 	}
 
 	cs.setupRoutes()
@@ -46,7 +47,7 @@ func NewCoapServer(config *Config, publisher KafkaPublisherInterface, db *sql.DB
 	return cs
 }
 
-// setupRoutes는 설정 파일에 정의된 엔드포인트를 기반으로 CoAP 라우트를 설정합니다.
+// setupRoutes는 설정 파일에 정의된 엔���포인트를 기반으로 CoAP 라우트를 설정합니다.
 func (cs *CoapServer) setupRoutes() {
 	for _, endpoint := range cs.config.Endpoints {
 		cs.addRoute(endpoint)
@@ -54,7 +55,7 @@ func (cs *CoapServer) setupRoutes() {
 }
 
 // addRoute는 단일 엔드포인트에 대한 CoAP 라우트를 추가합니다.
-func (cs *CoapServer) addRoute(endpoint EndpointConfig) {
+func (cs *CoapServer) addRoute(endpoint config.EndpointConfig) {
 	path := endpoint.Path
 	method := strings.ToUpper(endpoint.Method)
 
@@ -63,7 +64,7 @@ func (cs *CoapServer) addRoute(endpoint EndpointConfig) {
 }
 
 // createHandler는 CoAP 요청을 처리하는 핸들러 함수를 생성합니다.
-func (cs *CoapServer) createHandler(endpoint EndpointConfig, method string) mux.HandlerFunc {
+func (cs *CoapServer) createHandler(endpoint config.EndpointConfig, method string) mux.HandlerFunc {
 	return func(w mux.ResponseWriter, r *mux.Message) {
 		if r.Code().String() != method {
 			w.SetResponse(codes.MethodNotAllowed, message.TextPlain, bytes.NewReader([]byte("Method Not Allowed")))
@@ -98,7 +99,7 @@ func (cs *CoapServer) createHandler(endpoint EndpointConfig, method string) mux.
 				if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
 					log.Printf("CoAP Request Log: %s", string(logBytes))
 				}
-				go func() { saveToDB(cs.db, endpoint.Path, jsonData, nil, cs.publisher) }()
+				go func() { db.SaveToDB(cs.db, endpoint.Path, jsonData, nil, cs.publisher) }()
 
 			} else {
 				log.Printf("CoAP %s %s - %d | Request body: %s", r.Code(), endpoint.Path, endpoint.Response.Status, string(bodyBytes))
@@ -161,7 +162,6 @@ func (cs *CoapServer) Stop() {
 }
 
 // Reload는 새로운 설정으로 CoAP 서버를 재시작합니다.
-func (cs *CoapServer) Reload(newConfig *Config) {
+func (cs *CoapServer) Reload(newConfig *config.Config) {
 	log.Println("Reloading CoAP server is not supported in the current implementation.")
 }
-

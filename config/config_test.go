@@ -1,5 +1,4 @@
-
-package main
+package config
 
 import (
 	"os"
@@ -47,9 +46,9 @@ endpoints:
 		}
 
 		expectedConfig := &Config{
-			Server: ServerConfig{Port: "8080", Host: "localhost"},
+			Server:   ServerConfig{Port: "8080", Host: "localhost"},
 			Database: DatabaseConfig{ConnectionString: "user=test password=test dbname=test sslmode=disable"},
-			Kafka: KafkaConfig{Brokers: []string{"localhost:9092"}},
+			Kafka:    KafkaConfig{Brokers: []string{"localhost:9092"}},
 			Endpoints: []EndpointConfig{
 				{
 					Path:   "/test",

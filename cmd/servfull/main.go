@@ -10,44 +10,49 @@ import (
 	"syscall"   // 시스템 콜 상수
 	"time"      // 시간 관련 기능
 
+	"servone/coap"
+	"servone/config"
+	"servone/db"
+	"servone/kafka"
 	"servone/mqtt"
+	"servone/server"
 )
 
 func main() {
 	configPath := "config.yaml" // 사용할 설정 파일 경로
 
 	// 설정 파일 로드
-	config, err := LoadConfig(configPath)
+	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err) // 설정 파일 로드 실패 시 프로그램 종료
 	}
 
-	if err := InitDB(config.Database.ConnectionString); err != nil {
+	if err := db.InitDB(cfg.Database.ConnectionString); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	setupDatabase()
+	db.SetupDatabase()
 
 	// Kafka Publisher 생성
-	publisher, err := NewKafkaPublisher(config.Kafka.Brokers)
+	publisher, err := kafka.NewKafkaPublisher(cfg.Kafka.Brokers)
 	if err != nil {
 		log.Fatalf("Failed to create kafka publisher: %v", err)
 	}
 	defer publisher.Close()
 
 	// MQTT Client 생성 및 연결
-	mqttClient, err := mqtt.NewMQTTClient(config.MQTT.Broker, config.MQTT.ClientID, publisher, config)
+	mqttClient, err := mqtt.NewMQTTClient(cfg.MQTT.Broker, cfg.MQTT.ClientID, publisher, cfg)
 	if err != nil {
 		log.Fatalf("Failed to create MQTT client: %v", err)
 	}
 	mqttClient.Subscribe("#") // 모든 토픽 구독
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
-	server := NewDynamicServer(config, publisher)
-	coapServer := NewCoapServer(config, publisher, dbPool)
+	server := server.NewDynamicServer(cfg, publisher)
+	coapServer := coap.NewCoapServer(cfg, publisher)
 
 	// 설정 파일 변경 감시를 위한 watcher 생성
-	watcher, err := NewConfigWatcher(configPath, server, coapServer)
+	watcher, err := config.NewConfigWatcher(configPath, server, coapServer)
 	if err != nil {
 		log.Fatalf("Failed to create config watcher: %v", err)
 	}

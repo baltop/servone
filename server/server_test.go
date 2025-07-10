@@ -3,18 +3,34 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"servone/config"
 	"strings"
 	"testing"
 )
 
+type MockKafkaPublisher struct {
+	PublishedTopic string
+	PublishedData  map[string]interface{}
+}
+
+// Close implements kafka.KafkaPublisherInterface.
+func (m *MockKafkaPublisher) Close() {
+	panic("unimplemented")
+}
+
+func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) {
+	m.PublishedTopic = topic
+	m.PublishedData = data
+}
+
 func TestDynamicServer(t *testing.T) {
-	config := &Config{
-		Server: ServerConfig{Port: "8080", Host: "localhost"},
-		Endpoints: []EndpointConfig{
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: "8080", Host: "localhost"},
+		Endpoints: []config.EndpointConfig{
 			{
 				Path:   "/hello",
 				Method: "GET",
-				Response: ResponseConfig{
+				Response: config.ResponseConfig{
 					Status: 200,
 					Body:   "Hello, World!",
 					Headers: map[string]string{
@@ -25,7 +41,7 @@ func TestDynamicServer(t *testing.T) {
 			{
 				Path:   "/users/{id}",
 				Method: "GET",
-				Response: ResponseConfig{
+				Response: config.ResponseConfig{
 					Status: 200,
 					Body:   `{"id": {{.id}}}`,
 					Headers: map[string]string{
@@ -36,7 +52,7 @@ func TestDynamicServer(t *testing.T) {
 			{
 				Path:   "/create",
 				Method: "POST",
-				Response: ResponseConfig{
+				Response: config.ResponseConfig{
 					Status: 201,
 					Body:   "Created",
 				},
@@ -45,14 +61,9 @@ func TestDynamicServer(t *testing.T) {
 	}
 
 	// Mock Kafka publisher
-	mockPublisher := &MockKafkaPublisher{
-		PublishFunc: func(topic string, data map[string]interface{}) {
-			// For testing, we can log or check the published data.
-			// In this test, we just need to avoid a nil pointer dereference.
-		},
-	}
+	mockPublisher := &MockKafkaPublisher{}
 
-	ds := NewDynamicServer(config, mockPublisher)
+	ds := NewDynamicServer(cfg, mockPublisher)
 
 	t.Run("Basic GET request", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "/hello", nil)

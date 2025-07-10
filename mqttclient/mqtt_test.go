@@ -1,4 +1,4 @@
-package mqtt
+package mqttclient
 
 import (
 	"testing"
@@ -19,8 +19,8 @@ func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) 
 
 // MockDBConfig for testing
 type MockDBConfig struct {
-	SavedTopic    string
-	SavedPayload  string
+	SavedTopic     string
+	SavedPayload   string
 	SavedTimestamp int64
 }
 
@@ -41,7 +41,7 @@ func TestNewMQTTClient(t *testing.T) {
 	mockKafka := &MockKafkaPublisher{}
 	mockDB := &MockDBConfig{}
 
-	client, err := NewMQTTClient(borker, clientID, mockKafka, mockDB)
+	client, err := NewMQTTClient(borker, clientID, mockKafka)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 
@@ -59,7 +59,7 @@ func TestMQTTClient_Subscribe(t *testing.T) {
 	mockKafka := &MockKafkaPublisher{}
 	mockDB := &MockDBConfig{}
 
-	client, err := NewMQTTClient(borker, clientID, mockKafka, mockDB)
+	client, err := NewMQTTClient(borker, clientID, mockKafka)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 

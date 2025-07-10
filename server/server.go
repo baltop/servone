@@ -9,6 +9,9 @@ import (
 	"log"           // 로그 출력
 	"net/http"      // HTTP 서버
 	"regexp"        // 정규표현식
+	"servone/config"
+	"servone/db"
+	"servone/kafka" // Kafka 퍼블리셔 인터페이스
 	"strconv"       // 문자열-숫자 변환
 	"strings"       // 문자열 처리
 	"text/template" // 템플릿 처리
@@ -20,18 +23,18 @@ import (
 
 // 동적으로 라우트와 응답을 처리하는 서버 구조체
 type DynamicServer struct {
-	config    *Config                   // 현재 서버 설정
+	config    *config.Config            // 현재 서버 설정
 	router    *mux.Router               // HTTP 라우터
 	server    *http.Server              // HTTP 서버 인스턴스
 	pathVars  map[string]*regexp.Regexp // 경로 변수에 대한 정규표현식 매핑
-	publisher KafkaPublisherInterface
+	publisher kafka.KafkaPublisherInterface
 }
 
 // DynamicServer 생성자 함수
 // config: 서버 설정 구조체
-func NewDynamicServer(config *Config, publisher KafkaPublisherInterface) *DynamicServer {
+func NewDynamicServer(cfg *config.Config, publisher kafka.KafkaPublisherInterface) *DynamicServer {
 	ds := &DynamicServer{
-		config:    config,
+		config:    cfg,
 		router:    mux.NewRouter(), // 새로운 라우터 생성
 		pathVars:  make(map[string]*regexp.Regexp),
 		publisher: publisher,
@@ -57,7 +60,7 @@ func (ds *DynamicServer) setupRoutes() {
 }
 
 // 단일 엔드포인트를 라우터에 등록하는 함수
-func (ds *DynamicServer) addRoute(endpoint EndpointConfig) {
+func (ds *DynamicServer) addRoute(endpoint config.EndpointConfig) {
 	path := endpoint.Path                      // 엔드포인트 경로
 	method := strings.ToUpper(endpoint.Method) // HTTP 메서드 대문자화
 
@@ -74,7 +77,7 @@ func (ds *DynamicServer) addRoute(endpoint EndpointConfig) {
 }
 
 // 엔드포인트별 요청을 처리하는 핸들러 함수 생성
-func (ds *DynamicServer) createHandler(endpoint EndpointConfig) http.HandlerFunc {
+func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r) // URL 경로 변수 추출
 
@@ -99,7 +102,7 @@ func (ds *DynamicServer) createHandler(endpoint EndpointConfig) http.HandlerFunc
 				}
 
 				// 데이터베이스에 저장
-				go func() { saveToDB(dbPool, endpoint.Path, jsonData, vars, ds.publisher) }()
+				go func() { db.SaveToDB(endpoint.Path, jsonData, vars, ds.publisher) }()
 
 			} else {
 				// JSON 파싱 실패 시 일반 텍스트로 로그
@@ -167,7 +170,7 @@ func (ds *DynamicServer) Start() error {
 }
 
 // 설정 변경 시 서버 라우트 및 핸들러를 재설정하는 함수
-func (ds *DynamicServer) Reload(newConfig *Config) {
+func (ds *DynamicServer) Reload(newConfig *config.Config) {
 	log.Println("Reloading server configuration...") // 재로드 시작 로그
 
 	ds.config = newConfig                         // 새로운 설정 반영

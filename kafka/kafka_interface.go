@@ -1,4 +1,4 @@
-package main
+package kafka
 
 // KafkaPublisherInterface defines the interface for publishing messages to Kafka.
 // This is used for mocking in tests.

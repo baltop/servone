@@ -1,10 +1,11 @@
-package main
+package coap
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"servone/config"
 	"testing"
 	"time"
 
@@ -32,22 +33,22 @@ func (m *MockKafkaPublisher) Close() {
 
 func TestCoapServer(t *testing.T) {
 	// 테스트용 설정
-	config := &Config{
-		Coap: CoapConfig{
+	cfg := &config.Config{
+		Coap: config.CoapConfig{
 			Host: "localhost",
 			Port: "5689", // 테스트용 포트
 		},
-		Endpoints: []EndpointConfig{
+		Endpoints: []config.EndpointConfig{
 			{
 				Path:   "/test",
 				Method: "POST",
-				Response: ResponseConfig{
+				Response: config.ResponseConfig{
 					Status: 205, // CoAP Content
 					Body:   "OK",
 				},
 			},
 		},
-		Database: DatabaseConfig{
+		Database: config.DatabaseConfig{
 			ConnectionString: testDBConnectionString, // from database_test.go
 		},
 	}
@@ -69,14 +70,14 @@ func TestCoapServer(t *testing.T) {
 	defer db.Close()
 
 	// CoAP 서버 시작
-	coapServer := NewCoapServer(config, mockPublisher, db)
+	coapServer := NewCoapServer(cfg, mockPublisher, db)
 	defer coapServer.Stop()
 
 	time.Sleep(100 * time.Millisecond) // 서버가 시작될 시간을 짧게 줍니다.
 
 	t.Run("POST request to CoAP server", func(t *testing.T) {
 		// CoAP 클라이언트 설정
-		co, err := udp.Dial(config.Coap.Host + ":" + config.Coap.Port)
+		co, err := udp.Dial(cfg.Coap.Host + ":" + cfg.Coap.Port)
 		require.NoError(t, err)
 		defer co.Close()
 

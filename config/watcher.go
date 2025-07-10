@@ -1,8 +1,9 @@
-package main
+package config
 
 import (
 	"log"
 	"path/filepath"
+
 	"time"
 
 	"github.com/fsnotify/fsnotify"

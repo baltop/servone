@@ -1,29 +1,30 @@
-package main
+package db
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
+	"servone/kafka"
 	"time"
 
 	_ "github.com/lib/pq"
 )
 
-var dbPool *sql.DB
+var DbPool *sql.DB
 
 func InitDB(connStr string) error {
 	var err error
-	dbPool, err = sql.Open("postgres", connStr)
+	DbPool, err = sql.Open("postgres", connStr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	dbPool.SetMaxOpenConns(25)
-	dbPool.SetMaxIdleConns(25)
-	dbPool.SetConnMaxLifetime(5 * time.Minute)
+	DbPool.SetMaxOpenConns(25)
+	DbPool.SetMaxIdleConns(25)
+	DbPool.SetConnMaxLifetime(5 * time.Minute)
 
-	if err = dbPool.Ping(); err != nil {
+	if err = DbPool.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -31,7 +32,7 @@ func InitDB(connStr string) error {
 	return nil
 }
 
-func setupDatabase() {
+func SetupDatabase() {
 	createClientDataTableSQL := `
 	CREATE TABLE IF NOT EXISTS client_data (
 		id SERIAL PRIMARY KEY,
@@ -41,7 +42,7 @@ func setupDatabase() {
 		created_at BIGINT
 	);`
 
-	_, err := dbPool.Exec(createClientDataTableSQL)
+	_, err := DbPool.Exec(createClientDataTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create 'client_data' table: %v", err)
 	}
@@ -55,14 +56,14 @@ func setupDatabase() {
 		created_at BIGINT
 	);`
 
-	_, err = dbPool.Exec(createMQTTMessagesTableSQL)
+	_, err = DbPool.Exec(createMQTTMessagesTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create 'mqtt_messages' table: %v", err)
 	}
 	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
 }
 
-func saveToDB(db *sql.DB, url string, data map[string]interface{}, params map[string]string, publisher KafkaPublisherInterface) {
+func SaveToDB(url string, data map[string]interface{}, params map[string]string, publisher kafka.KafkaPublisherInterface) {
 	// Merge data and params, prioritizing existing keys in data
 	mergedData := make(map[string]interface{})
 	for k, v := range data {
@@ -97,24 +98,24 @@ func saveToDB(db *sql.DB, url string, data map[string]interface{}, params map[st
 		"received": time.Now().UnixNano(),
 	}
 
-	_, err = db.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
+	_, err = DbPool.Exec(insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	} else {
 		if publisher != nil {
 			// Sanitize the topic before publishing
-			topic := sanitizeTopic(url)
+			topic := kafka.SanitizeTopic(url)
 			publisher.Publish(topic, kafkaData)
 		}
 	}
 }
 
-func (c *Config) SaveMQTTMessage(topic string, payload string, receivedTime int64) {
+func SaveMQTTMessage(topic string, payload string, receivedTime int64) {
 	insertSQL := `
 	INSERT INTO mqtt_messages (topic, payload, created_at)
 	VALUES ($1, $2, $3);`
 
-	_, err := dbPool.Exec(insertSQL, topic, payload, receivedTime)
+	_, err := DbPool.Exec(insertSQL, topic, payload, receivedTime)
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	}

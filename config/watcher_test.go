@@ -1,9 +1,8 @@
-
-
-package main
+package config
 
 import (
 	"os"
+
 	"testing"
 	"time"
 )
