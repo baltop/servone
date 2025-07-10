@@ -103,7 +103,7 @@ func setupMQTTDatabase(config *Config) {
 	CREATE TABLE IF NOT EXISTS mqtt_messages (
 		id SERIAL PRIMARY KEY,
 		topic TEXT NOT NULL,
-		payload BYTEA,
+		payload TEXT,
 		created_at BIGINT
 	);`
 
@@ -115,7 +115,7 @@ func setupMQTTDatabase(config *Config) {
 	fmt.Println("Table 'mqtt_messages' created successfully or already exists.")
 }
 
-func (c *Config) SaveMQTTMessage(topic string, payload []byte) {
+func (c *Config) SaveMQTTMessage(topic string, payload string, receivedTime int64) {
 	connStr := c.Database.ConnectionString
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -128,7 +128,7 @@ func (c *Config) SaveMQTTMessage(topic string, payload []byte) {
 	INSERT INTO mqtt_messages (topic, payload, created_at)
 	VALUES ($1, $2, $3);`
 
-	_, err = db.Exec(insertSQL, topic, payload, time.Now().UnixNano())
+	_, err = db.Exec(insertSQL, topic, payload, receivedTime)
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	}

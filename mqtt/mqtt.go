@@ -18,7 +18,7 @@ type KafkaPublisher interface {
 }
 
 type DBConfig interface {
-	SaveMQTTMessage(topic string, payload []byte)
+	SaveMQTTMessage(topic string, payload string, receivedTime int64)
 }
 
 func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher, dbConfig DBConfig) (*MQTTClient, error) {
@@ -44,16 +44,16 @@ func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher
 func (c *MQTTClient) Subscribe(topic string) {
 	token := c.client.Subscribe(topic, 1, func(client mqtt.Client, msg mqtt.Message) {
 		log.Printf("Received message on topic: %s", msg.Topic())
-
+		receivedTime := time.Now().UnixNano()
 		// Save to DB
-		c.dbConfig.SaveMQTTMessage(msg.Topic(), msg.Payload())
+		c.dbConfig.SaveMQTTMessage(msg.Topic(), string(msg.Payload()), receivedTime)
 
 		// Publish to Kafka
 		kafkaTopic := "mq." + msg.Topic()
 		kafkaPayload := map[string]interface{}{
 			"topic":    msg.Topic(),
 			"payload":  string(msg.Payload()),
-			"received": time.Now().UnixNano(),
+			"received": receivedTime,
 		}
 		c.kafkaPublisher.Publish(kafkaTopic, kafkaPayload)
 	})
