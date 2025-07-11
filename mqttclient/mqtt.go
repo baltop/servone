@@ -15,7 +15,7 @@ type MQTTClient struct {
 }
 
 type KafkaPublisher interface {
-	Publish(topic string, data map[string]interface{})
+	Publish(topic string, data map[string]interface{}) error
 }
 
 func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher, dbConfig *config.Config) (*MQTTClient, error) {
@@ -37,12 +37,16 @@ func NewMQTTClient(broker string, clientID string, kafkaPublisher KafkaPublisher
 	}, nil
 }
 
-func (c *MQTTClient) Subscribe(topic string) {
+func (c *MQTTClient) Subscribe(topic string) error {
 	token := c.client.Subscribe(topic, 1, func(client mqtt.Client, msg mqtt.Message) {
 		log.Printf("Received message on topic: %s and message : %s", msg.Topic(), string(msg.Payload()))
 		receivedTime := time.Now().UnixNano()
+		
 		// Save to DB
-		db.SaveMQTTMessage(msg.Topic(), string(msg.Payload()), receivedTime)
+		if err := db.SaveMQTTMessage(msg.Topic(), string(msg.Payload()), receivedTime); err != nil {
+			log.Printf("Failed to save MQTT message to database: %v", err)
+			// Continue to publish to Kafka even if DB save fails
+		}
 
 		// Publish to Kafka
 		kafkaTopic := "mq." + msg.Topic()
@@ -51,10 +55,17 @@ func (c *MQTTClient) Subscribe(topic string) {
 			"payload":  string(msg.Payload()),
 			"received": receivedTime,
 		}
-		c.kafkaPublisher.Publish(kafkaTopic, kafkaPayload)
+		if err := c.kafkaPublisher.Publish(kafkaTopic, kafkaPayload); err != nil {
+			log.Printf("Failed to publish MQTT message to Kafka: %v", err)
+		}
 	})
-	token.Wait()
+	
+	if token.Wait() && token.Error() != nil {
+		return token.Error()
+	}
+	
 	log.Printf("Subscribed to topic: %s", topic)
+	return nil
 }
 
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {

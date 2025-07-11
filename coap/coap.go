@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"sync"
 
 	"servone/config"
 	"servone/db"
@@ -25,6 +26,9 @@ type CoapServer struct {
 	config    *config.Config
 	router    *mux.Router
 	publisher kafka.KafkaPublisherInterface
+	stopChan  chan struct{}
+	listening bool
+	mu        sync.Mutex
 }
 
 // NewCoapServer는 새로운 CoapServer 인스턴스를 생성하고 초기화합니다.
@@ -33,18 +37,39 @@ func NewCoapServer(cfg *config.Config, publisher kafka.KafkaPublisherInterface) 
 		config:    cfg,
 		router:    mux.NewRouter(),
 		publisher: publisher,
+		stopChan:  make(chan struct{}),
 	}
 
 	cs.setupRoutes()
-
-	go func() {
-		log.Printf("Starting CoAP server on %s:%s", cs.config.Coap.Host, cs.config.Coap.Port)
-		if err := coap.ListenAndServe("udp", cs.config.Coap.Host+":"+cs.config.Coap.Port, cs.router); err != nil {
-			log.Fatalf("Failed to start CoAP server: %v", err)
-		}
-	}()
+	cs.start()
 
 	return cs
+}
+
+// start starts the CoAP server
+func (cs *CoapServer) start() {
+	addr := cs.config.Coap.Host + ":" + cs.config.Coap.Port
+
+	go func() {
+		log.Printf("Starting CoAP server on %s", addr)
+		cs.mu.Lock()
+		cs.listening = true
+		cs.mu.Unlock()
+		
+		if err := coap.ListenAndServe("udp", addr, cs.router); err != nil {
+			// Check if server was stopped intentionally
+			select {
+			case <-cs.stopChan:
+				log.Println("CoAP server stopped")
+			default:
+				log.Printf("CoAP server error: %v", err)
+			}
+		}
+		
+		cs.mu.Lock()
+		cs.listening = false
+		cs.mu.Unlock()
+	}()
 }
 
 // setupRoutes는 설정 파일에 정의된 엔���포인트를 기반으로 CoAP 라우트를 설정합니다.
@@ -99,7 +124,24 @@ func (cs *CoapServer) createHandler(endpoint config.EndpointConfig, method strin
 				if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
 					log.Printf("CoAP Request Log: %s", string(logBytes))
 				}
-				go func() { db.SaveToDB(endpoint.Path, jsonData, nil, cs.publisher) }()
+				// Save to database and publish to Kafka
+				go func() {
+					receivedTime := time.Now().UnixNano()
+					if err := db.SaveCoapMessage(endpoint.Path, string(bodyBytes), r.Code().String(), receivedTime); err != nil {
+						log.Printf("Failed to save CoAP message to database: %v", err)
+					}
+					
+					// Publish to Kafka
+					kafkaPayload := map[string]interface{}{
+						"path":     endpoint.Path,
+						"method":   r.Code().String(),
+						"data":     jsonData,
+						"received": receivedTime,
+					}
+					if err := cs.publisher.Publish("coap."+endpoint.Path, kafkaPayload); err != nil {
+						log.Printf("Failed to publish CoAP message to Kafka: %v", err)
+					}
+				}()
 
 			} else {
 				log.Printf("CoAP %s %s - %d | Request body: %s", r.Code(), endpoint.Path, endpoint.Response.Status, string(bodyBytes))
@@ -157,11 +199,33 @@ func (cs *CoapServer) processTemplate(body string, vars map[string]string) strin
 }
 
 // Stop은 CoAP 서버를 중지합니다.
+// Stop gracefully stops the CoAP server
 func (cs *CoapServer) Stop() {
-	log.Println("Stopping CoAP server is not supported in the current implementation.")
+	log.Println("Stopping CoAP server...")
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	
+	if cs.listening {
+		close(cs.stopChan)
+		// Note: go-coap v3 doesn't provide a way to stop a running server
+		// The server will stop when the main program exits
+		cs.listening = false
+	}
 }
 
 // Reload는 새로운 설정으로 CoAP 서버를 재시작합니다.
 func (cs *CoapServer) Reload(newConfig *config.Config) {
-	log.Println("Reloading CoAP server is not supported in the current implementation.")
+	log.Println("Reloading CoAP server...")
+	
+	// Stop the current server
+	cs.Stop()
+	
+	// Update configuration
+	cs.config = newConfig
+	cs.router = mux.NewRouter()
+	cs.setupRoutes()
+	cs.stopChan = make(chan struct{})
+	
+	// Start the server again
+	cs.start()
 }

@@ -52,7 +52,9 @@ func main() {
 		log.Fatalf("Failed to create MQTT client: %v", err)
 	}
 	defer mqttClient.Disconnect()
-	mqttClient.Subscribe("#") // 모든 토픽 구독
+	if err := mqttClient.Subscribe("#"); err != nil {
+		log.Fatalf("Failed to subscribe to MQTT topics: %v", err)
+	}
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
 	server := server.NewDynamicServer(cfg, publisher)

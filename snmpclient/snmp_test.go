@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"servone/config"
+	servone_db "servone/db"
 	"strings"
 	"testing"
 	"time"
@@ -22,11 +23,12 @@ type PublishedMessage struct {
 	Data  map[string]interface{}
 }
 
-func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) {
+func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) error {
 	m.Published = append(m.Published, PublishedMessage{Topic: topic, Data: data})
 	if m.PublishFunc != nil {
 		m.PublishFunc(topic, data)
 	}
+	return nil
 }
 
 func setupTestDB(t *testing.T) *sql.DB {
@@ -158,13 +160,12 @@ func TestProcessResults(t *testing.T) {
 	}
 }
 
-func TestSaveToDB(t *testing.T) {
+func TestSaveToDatabase(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := &config.SNMPConfig{}
-	client, _ := NewSNMPClient(cfg, db, &MockKafkaPublisher{})
-	defer client.Stop()
+	// Initialize the global db pool for servone_db package
+	servone_db.DbPool = db
 
 	testData := map[string]interface{}{
 		"operation": "test",
@@ -178,14 +179,15 @@ func TestSaveToDB(t *testing.T) {
 		},
 	}
 
-	err := client.saveToDB("test", "test_host", testData, time.Now().UnixNano())
+	// Test using db.SaveSNMPData directly
+	err := servone_db.SaveSNMPData("test_host", testData, time.Now().UnixNano())
 	if err != nil {
 		t.Fatalf("Failed to save to DB: %v", err)
 	}
 
 	// Verify data was saved
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM snmp_messages WHERE source = 'test_host'").Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM snmp_data WHERE host = 'test_host'").Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to query database: %v", err)
 	}
@@ -194,7 +196,7 @@ func TestSaveToDB(t *testing.T) {
 	}
 
 	// Clean up
-	db.Exec("DELETE FROM snmp_messages WHERE source = 'test_host'")
+	db.Exec("DELETE FROM snmp_data WHERE host = 'test_host'")
 }
 
 func TestGetValueString(t *testing.T) {

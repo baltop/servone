@@ -2,11 +2,11 @@ package snmpclient
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"servone/config"
+	"servone/db"
 	"servone/kafka"
 	"time"
 
@@ -21,7 +21,7 @@ type SNMPClient struct {
 }
 
 type KafkaPublisherInterface interface {
-	Publish(topic string, data map[string]interface{})
+	Publish(topic string, data map[string]interface{}) error
 }
 
 func NewSNMPClient(cfg *config.SNMPConfig, db *sql.DB, kafkaPublisher KafkaPublisherInterface) (*SNMPClient, error) {
@@ -208,13 +208,15 @@ func (c *SNMPClient) processResults(operation string, source string, pdus []gosn
 	}
 
 	// Save to database
-	if err := c.saveToDB(operation, source, data, receivedTime); err != nil {
+	if err := db.SaveSNMPData(source, data, receivedTime); err != nil {
 		log.Printf("Failed to save SNMP data to DB: %v", err)
 	}
 
 	// Publish to Kafka
 	kafkaTopic := fmt.Sprintf("snmp.%s.%s", operation, kafka.SanitizeTopic(source))
-	c.kafkaPublisher.Publish(kafkaTopic, data)
+	if err := c.kafkaPublisher.Publish(kafkaTopic, data); err != nil {
+		log.Printf("Failed to publish SNMP data to Kafka: %v", err)
+	}
 }
 
 // getValueString converts SNMP PDU value to string
@@ -229,35 +231,6 @@ func (c *SNMPClient) getValueString(pdu gosnmp.SnmpPDU) string {
 	}
 }
 
-// saveToDB stores SNMP data in database
-func (c *SNMPClient) saveToDB(operation, source string, data map[string]interface{}, timestamp int64) error {
-	dataJSON, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal data: %w", err)
-	}
-
-	// Create SNMP messages table if not exists
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS snmp_messages (
-		id SERIAL PRIMARY KEY,
-		operation TEXT NOT NULL,
-		source TEXT NOT NULL,
-		data JSONB,
-		created_at BIGINT
-	);`
-
-	if _, err := c.db.Exec(createTableSQL); err != nil {
-		return fmt.Errorf("failed to create table: %w", err)
-	}
-
-	// Insert data
-	insertSQL := `
-	INSERT INTO snmp_messages (operation, source, data, created_at)
-	VALUES ($1, $2, $3, $4);`
-
-	_, err = c.db.Exec(insertSQL, operation, source, dataJSON, timestamp)
-	return err
-}
 
 // Stop gracefully stops the SNMP client
 func (c *SNMPClient) Stop() {

@@ -76,7 +76,10 @@ func TestKafkaPublisher_Publish(t *testing.T) {
 		}
 
 		// Publish the message
-		publisher.Publish(testTopic, testData)
+		err = publisher.Publish(testTopic, testData)
+		if err != nil {
+			t.Fatalf("Failed to publish message: %v", err)
+		}
 
 		// Consume the message
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

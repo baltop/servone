@@ -1,6 +1,7 @@
 package mqttclient
 
 import (
+	"servone/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,9 +13,10 @@ type MockKafkaPublisher struct {
 	PublishedData  map[string]interface{}
 }
 
-func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) {
+func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) error {
 	m.PublishedTopic = topic
 	m.PublishedData = data
+	return nil
 }
 
 // MockDBConfig for testing
@@ -24,10 +26,11 @@ type MockDBConfig struct {
 	SavedTimestamp int64
 }
 
-func (m *MockDBConfig) SaveMQTTMessage(topic string, payload string, timestamp int64) {
+func (m *MockDBConfig) SaveMQTTMessage(topic string, payload string, timestamp int64) error {
 	m.SavedTopic = topic
 	m.SavedPayload = payload
 	m.SavedTimestamp = timestamp
+	return nil
 }
 
 func TestNewMQTTClient(t *testing.T) {
@@ -39,9 +42,9 @@ func TestNewMQTTClient(t *testing.T) {
 	clientID := "test_client"
 
 	mockKafka := &MockKafkaPublisher{}
-	mockDB := &MockDBConfig{}
+	cfg := &config.Config{}
 
-	client, err := NewMQTTClient(borker, clientID, mockKafka)
+	client, err := NewMQTTClient(borker, clientID, mockKafka, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 
@@ -57,9 +60,9 @@ func TestMQTTClient_Subscribe(t *testing.T) {
 	clientID := "test_subscriber"
 
 	mockKafka := &MockKafkaPublisher{}
-	mockDB := &MockDBConfig{}
+	cfg := &config.Config{}
 
-	client, err := NewMQTTClient(borker, clientID, mockKafka)
+	client, err := NewMQTTClient(borker, clientID, mockKafka, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 

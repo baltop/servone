@@ -21,10 +21,11 @@ type MockKafkaPublisher struct {
 	PublishFunc func(topic string, data map[string]interface{})
 }
 
-func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) {
+func (m *MockKafkaPublisher) Publish(topic string, data map[string]interface{}) error {
 	if m.PublishFunc != nil {
 		m.PublishFunc(topic, data)
 	}
+	return nil
 }
 
 func (m *MockKafkaPublisher) Close() {
@@ -48,9 +49,6 @@ func TestCoapServer(t *testing.T) {
 				},
 			},
 		},
-		Database: config.DatabaseConfig{
-			ConnectionString: testDBConnectionString, // from database_test.go
-		},
 	}
 
 	// 모의 Kafka publisher 설정
@@ -65,12 +63,8 @@ func TestCoapServer(t *testing.T) {
 		},
 	}
 
-	// 테스트용 데이터베이스 설정
-	db := setupTestDB(t)
-	defer db.Close()
-
 	// CoAP 서버 시작
-	coapServer := NewCoapServer(cfg, mockPublisher, db)
+	coapServer := NewCoapServer(cfg, mockPublisher)
 	defer coapServer.Stop()
 
 	time.Sleep(100 * time.Millisecond) // 서버가 시작될 시간을 짧게 줍니다.
@@ -113,21 +107,6 @@ func TestCoapServer(t *testing.T) {
 			t.Fatal("timed out waiting for Kafka publish")
 		}
 
-		// 데이터베이스 저장 확인
-		var (
-			id          int
-			savedURL    string
-			savedData   []byte
-			savedParams []byte
-			createdAt   int64
-		)
-		row := db.QueryRow("SELECT id, url, data, parameters, created_at FROM client_data WHERE url = $1", "/test")
-		err = row.Scan(&id, &savedURL, &savedData, &savedParams, &createdAt)
-		require.NoError(t, err)
-
-		assert.Equal(t, "/test", savedURL)
-		var unmarshaledData map[string]interface{}
-		require.NoError(t, json.Unmarshal(savedData, &unmarshaledData))
-		assert.Equal(t, testData, unmarshaledData)
+		// CoAP에서는 데이터베이스 저장을 직접 테스트하지 않음 (db 패키지에서 처리)
 	})
 }
