@@ -17,6 +17,19 @@ mqtt:
   broker: "tcp://localhost:1883"
   client_id: "smart-mqtt-client"
 
+snmp:
+  port: 161
+  timeout: 5
+  retries: 3
+  username: "snmpuser"
+  auth_protocol: "SHA256"
+  auth_passphrase: "authpassword"
+  priv_protocol: "AES256"
+  priv_passphrase: "privpassword"
+  trap_enabled: true
+  trap_host: "0.0.0.0"
+  trap_port: 162
+
 endpoints:
   - path: "/api/users"
     method: "GET"
@@ -63,5 +76,21 @@ endpoints:
     response:
       status: 201
       body: '{"result": "success"}'
+      headers:
+        Content-Type: "application/json"
+
+  - path: "/api/snmp/get"
+    method: "POST"
+    response:
+      status: 200
+      body: '{"status": "success", "message": "SNMP GET operation triggered"}'
+      headers:
+        Content-Type: "application/json"
+
+  - path: "/api/snmp/walk"
+    method: "POST"
+    response:
+      status: 200
+      body: '{"status": "success", "message": "SNMP WALK operation triggered"}'
       headers:
         Content-Type: "application/json"

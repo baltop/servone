@@ -21,6 +21,7 @@ import (
 
 	"github.com/gorilla/mux" // 라우터
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"servone/snmpclient"
 )
 
 // 동적으로 라우트와 응답을 처리하는 서버 구조체
@@ -98,6 +99,18 @@ func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.Hand
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // 바디 복원(다중 사용 가능하게)
+		}
+
+		// Check if this is an SNMP endpoint
+		if strings.HasPrefix(endpoint.Path, "/api/snmp/") && r.Method == "POST" {
+			// Handle SNMP operations
+			if endpoint.Path == "/api/snmp/get" {
+				snmpclient.HandleSNMPRequest(w, r, "get")
+				return
+			} else if endpoint.Path == "/api/snmp/walk" {
+				snmpclient.HandleSNMPRequest(w, r, "walk")
+				return
+			}
 		}
 
 		// POST 요청이면서 JSON 바디가 있을 때 구조화된 로그 출력

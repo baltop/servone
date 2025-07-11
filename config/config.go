@@ -15,6 +15,7 @@ type Config struct {
 	Coap      CoapConfig       `yaml:"coap"`
 	Kafka     KafkaConfig      `yaml:"kafka"`
 	MQTT      MQTTConfig       `yaml:"mqtt"`
+	SNMP      SNMPConfig       `yaml:"snmp"`
 	Endpoints []EndpointConfig `yaml:"endpoints"` // 엔드포인트(라우트) 설정 목록
 }
 
@@ -44,6 +45,21 @@ type ServerConfig struct {
 // Kafka 관련 설정 구조체
 type KafkaConfig struct {
 	Brokers []string `yaml:"brokers"`
+}
+
+// SNMP 관련 설정 구조체
+type SNMPConfig struct {
+	Port           int    `yaml:"port"`
+	Timeout        int    `yaml:"timeout"`
+	Retries        int    `yaml:"retries"`
+	Username       string `yaml:"username"`
+	AuthProtocol   string `yaml:"auth_protocol"`
+	AuthPassphrase string `yaml:"auth_passphrase"`
+	PrivProtocol   string `yaml:"priv_protocol"`
+	PrivPassphrase string `yaml:"priv_passphrase"`
+	TrapEnabled    bool   `yaml:"trap_enabled"`
+	TrapHost       string `yaml:"trap_host"`
+	TrapPort       int    `yaml:"trap_port"`
 }
 
 // 각 엔드포인트(라우트)별 설정 구조체

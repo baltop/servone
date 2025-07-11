@@ -16,6 +16,7 @@ import (
 	"servone/kafka"
 	"servone/mqttclient"
 	"servone/server"
+	"servone/snmpclient"
 )
 
 func main() {
@@ -56,6 +57,16 @@ func main() {
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
 	server := server.NewDynamicServer(cfg, publisher)
 	coapServer := coap.NewCoapServer(cfg, publisher)
+	
+	// SNMP Client 생성
+	snmpClient, err := snmpclient.NewSNMPClient(&cfg.SNMP, db.DbPool, publisher)
+	if err != nil {
+		log.Fatalf("Failed to create SNMP client: %v", err)
+	}
+	defer snmpClient.Stop()
+	
+	// Set global SNMP client for HTTP handlers
+	snmpclient.SetGlobalSNMPClient(snmpClient)
 
 	// 설정 파일 변경 감시를 위한 watcher 생성
 	watcher, err := config.NewConfigWatcher(configPath, server, coapServer)

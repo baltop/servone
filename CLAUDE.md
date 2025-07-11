@@ -115,3 +115,6 @@ ORDER BY id DESC LIMIT 100
 
 - PostgreSQL: `postgresql://smart:smart1234@localhost:5432/strange`
 - Prometheus: `http://localhost:9090`
+
+### Memories
+- to memorize
