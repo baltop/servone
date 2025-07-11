@@ -3,7 +3,7 @@ package config
 import (
 	"log"
 	"path/filepath"
-
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -19,6 +19,8 @@ type ConfigWatcher struct {
 	configPath string
 	servers    []Reloadable
 	watcher    *fsnotify.Watcher
+	mu         sync.Mutex
+	debouncer  *time.Timer
 }
 
 // NewConfigWatcher creates a new ConfigWatcher.
@@ -58,11 +60,6 @@ func (cw *ConfigWatcher) Start() error {
 
 // watchLoop listens for file system events.
 func (cw *ConfigWatcher) watchLoop() {
-	debounce := time.NewTimer(0)
-	if !debounce.Stop() {
-		<-debounce.C
-	}
-
 	for {
 		select {
 		case event, ok := <-cw.watcher.Events:
@@ -73,11 +70,8 @@ func (cw *ConfigWatcher) watchLoop() {
 			eventPath, _ := filepath.Abs(event.Name)
 			if eventPath == cw.configPath && (event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create) {
 				log.Printf("Config file event detected: %s %s", event.Op, event.Name)
-				debounce.Reset(500 * time.Millisecond)
+				cw.scheduleReload()
 			}
-
-		case <-debounce.C:
-			cw.reloadConfig()
 
 		case err, ok := <-cw.watcher.Errors:
 			if !ok {
@@ -86,6 +80,20 @@ func (cw *ConfigWatcher) watchLoop() {
 			log.Printf("Config watcher error: %v", err)
 		}
 	}
+}
+
+// scheduleReload schedules a config reload with debouncing
+func (cw *ConfigWatcher) scheduleReload() {
+	cw.mu.Lock()
+	defer cw.mu.Unlock()
+
+	if cw.debouncer != nil {
+		cw.debouncer.Stop()
+	}
+
+	cw.debouncer = time.AfterFunc(500*time.Millisecond, func() {
+		cw.reloadConfig()
+	})
 }
 
 // reloadConfig reloads the configuration and applies it to the servers.
@@ -107,6 +115,13 @@ func (cw *ConfigWatcher) reloadConfig() {
 
 // Stop stops the watcher.
 func (cw *ConfigWatcher) Stop() {
+	cw.mu.Lock()
+	defer cw.mu.Unlock()
+
+	if cw.debouncer != nil {
+		cw.debouncer.Stop()
+	}
+
 	if cw.watcher != nil {
 		cw.watcher.Close()
 	}

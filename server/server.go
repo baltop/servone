@@ -15,6 +15,7 @@ import (
 	"servone/kafka" // Kafka 퍼블리셔 인터페이스
 	"strconv"       // 문자열-숫자 변환
 	"strings"       // 문자열 처리
+	"sync"          // 동기화
 	"text/template" // 템플릿 처리
 	"time"          // 시간 관련
 
@@ -24,11 +25,14 @@ import (
 
 // 동적으로 라우트와 응답을 처리하는 서버 구조체
 type DynamicServer struct {
-	config    *config.Config            // 현재 서버 설정
-	router    *mux.Router               // HTTP 라우터
-	server    *http.Server              // HTTP 서버 인스턴스
-	pathVars  map[string]*regexp.Regexp // 경로 변수에 대한 정규표현식 매핑
-	publisher kafka.KafkaPublisherInterface
+	config      *config.Config            // 현재 서버 설정
+	router      *mux.Router               // HTTP 라우터
+	server      *http.Server              // HTTP 서버 인스턴스
+	pathVars    map[string]*regexp.Regexp // 경로 변수에 대한 정규표현식 매핑
+	publisher   kafka.KafkaPublisherInterface
+	templates   map[string]*template.Template // 템플릿 캐시
+	templateMux sync.RWMutex                  // 템플릿 캐시 동기화
+	configMux   sync.RWMutex                  // 설정 변경 동기화
 }
 
 // DynamicServer 생성자 함수
@@ -39,13 +43,17 @@ func NewDynamicServer(cfg *config.Config, publisher kafka.KafkaPublisherInterfac
 		router:    mux.NewRouter(), // 새로운 라우터 생성
 		pathVars:  make(map[string]*regexp.Regexp),
 		publisher: publisher,
+		templates: make(map[string]*template.Template),
 	}
 
 	ds.setupRoutes() // 라우트 설정
 
 	ds.server = &http.Server{
-		Addr:    ds.config.Server.Host + ":" + ds.config.Server.Port, // 서버 주소 및 포트 지정
-		Handler: ds.router,                                           // 라우터를 핸들러로 지정
+		Addr:         ds.config.Server.Host + ":" + ds.config.Server.Port, // 서버 주소 및 포트 지정
+		Handler:      ds.router,                                           // 라우터를 핸들러로 지정
+		ReadTimeout:  30 * time.Second,                                    // 읽기 타임아웃
+		WriteTimeout: 30 * time.Second,                                    // 쓰기 타임아웃
+		IdleTimeout:  120 * time.Second,                                   // 유휴 타임아웃
 	}
 
 	return ds
@@ -67,12 +75,8 @@ func (ds *DynamicServer) addRoute(endpoint config.EndpointConfig) {
 
 	handler := ds.createHandler(endpoint) // 핸들러 함수 생성
 
-	// 경로에 변수({id} 등)가 포함되어 있는지 확인 후 등록
-	if strings.Contains(path, "{") {
-		ds.router.HandleFunc(path, handler).Methods(method)
-	} else {
-		ds.router.HandleFunc(path, handler).Methods(method)
-	}
+	// 라우트 등록
+	ds.router.HandleFunc(path, handler).Methods(method)
 
 	log.Printf("Added route: %s %s", method, path) // 라우트 등록 로그
 }
@@ -82,9 +86,17 @@ func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.Hand
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r) // URL 경로 변수 추출
 
+		// 요청 크기 제한 (10MB)
+		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+		
 		var bodyBytes []byte
+		var err error
 		if r.Body != nil {
-			bodyBytes, _ = io.ReadAll(r.Body)
+			bodyBytes, err = io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // 바디 복원(다중 사용 가능하게)
 		}
 
@@ -102,8 +114,12 @@ func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.Hand
 					log.Printf("Request Log: %s", string(logBytes)) // JSON 형태로 로그 출력
 				}
 
-				// 데이터베이스에 저장
-				go func() { db.SaveToDB(endpoint.Path, jsonData, vars, ds.publisher) }()
+				// 데이터베이스에 저장 (에러 로깅 추가)
+				go func() {
+					if err := db.SaveToDBWithError(endpoint.Path, jsonData, vars, ds.publisher); err != nil {
+						log.Printf("Failed to save to database: %v", err)
+					}
+				}()
 
 			} else {
 				// JSON 파싱 실패 시 일반 텍스트로 로그
@@ -136,10 +152,23 @@ func (ds *DynamicServer) processTemplate(body string, vars map[string]string) st
 		return body // 템플릿이 없으면 그대로 반환
 	}
 
-	tmpl, err := template.New("response").Parse(body) // 템플릿 파싱
-	if err != nil {
-		log.Printf("Template parse error: %v", err)
-		return body
+	// 템플릿 캐시 확인
+	ds.templateMux.RLock()
+	tmpl, exists := ds.templates[body]
+	ds.templateMux.RUnlock()
+
+	if !exists {
+		// 캐시에 없으면 파싱하고 저장
+		var err error
+		tmpl, err = template.New("response").Parse(body)
+		if err != nil {
+			log.Printf("Template parse error: %v", err)
+			return body
+		}
+		
+		ds.templateMux.Lock()
+		ds.templates[body] = tmpl
+		ds.templateMux.Unlock()
 	}
 
 	data := make(map[string]interface{})
@@ -155,8 +184,7 @@ func (ds *DynamicServer) processTemplate(body string, vars map[string]string) st
 	data["timestamp"] = time.Now().UTC().Format(time.RFC3339) // 현재 UTC 타임스탬프 추가
 
 	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, data) // 템플릿 실행
-	if err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil { // 템플릿 실행
 		log.Printf("Template execute error: %v", err)
 		return body
 	}
@@ -174,12 +202,22 @@ func (ds *DynamicServer) Start() error {
 func (ds *DynamicServer) Reload(newConfig *config.Config) {
 	log.Println("Reloading server configuration...") // 재로드 시작 로그
 
+	ds.configMux.Lock()
+	defer ds.configMux.Unlock()
+
 	ds.config = newConfig                         // 새로운 설정 반영
-	ds.router = mux.NewRouter()                   // 라우터 재생성
+	newRouter := mux.NewRouter()                  // 새 라우터 생성
 	ds.pathVars = make(map[string]*regexp.Regexp) // 경로 변수 맵 초기화
 
+	// 임시 라우터에 라우트 설정
+	ds.router = newRouter
 	ds.setupRoutes()              // 라우트 재설정
 	ds.server.Handler = ds.router // 서버 핸들러 갱신
+
+	// 템플릿 캐시 초기화
+	ds.templateMux.Lock()
+	ds.templates = make(map[string]*template.Template)
+	ds.templateMux.Unlock()
 
 	log.Println("Server configuration reloaded successfully") // 재로드 완료 로그
 }

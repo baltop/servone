@@ -68,3 +68,11 @@ var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
 var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
 	log.Printf("Connection lost: %v", err)
 }
+
+// Disconnect gracefully disconnects from the MQTT broker
+func (c *MQTTClient) Disconnect() {
+	if c.client != nil && c.client.IsConnected() {
+		c.client.Disconnect(250)
+		log.Println("Disconnected from MQTT broker")
+	}
+}

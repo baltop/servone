@@ -10,6 +10,9 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+// 전역 정규표현식 컴파일 (성능 최적화)
+var topicSanitizeRegex = regexp.MustCompile("[^a-zA-Z0-9._-]")
+
 // KafkaPublisher is a struct for publishing messages to Kafka.
 type KafkaPublisher struct {
 	client *kgo.Client
@@ -52,14 +55,13 @@ func (p *KafkaPublisher) Close() {
 	p.client.Close()
 }
 
-// sanitizeTopic prepares a topic name to be compliant with Kafka's naming rules.
+// SanitizeTopic prepares a topic name to be compliant with Kafka's naming rules.
 func SanitizeTopic(topic string) string {
 	topic = strings.TrimPrefix(topic, "/")
 	topic = strings.ReplaceAll(topic, "/", ".")
 
 	// Kafka topics can only contain letters, numbers, periods, underscores, and dashes.
-	reg := regexp.MustCompile("[^a-zA-Z0-9._-]|")
-	topic = reg.ReplaceAllString(topic, "")
+	topic = topicSanitizeRegex.ReplaceAllString(topic, "")
 
 	// Add a prefix to avoid potential conflicts with internal topics.
 	if !strings.HasPrefix(topic, "bz.") {

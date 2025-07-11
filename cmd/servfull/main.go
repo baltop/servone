@@ -30,6 +30,11 @@ func main() {
 	if err := db.InitDB(cfg.Database.ConnectionString); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
+	defer func() {
+		if err := db.CloseDB(); err != nil {
+			log.Printf("Failed to close database: %v", err)
+		}
+	}()
 
 	db.SetupDatabase()
 
@@ -45,6 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create MQTT client: %v", err)
 	}
+	defer mqttClient.Disconnect()
 	mqttClient.Subscribe("#") // 모든 토픽 구독
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
@@ -78,17 +84,17 @@ func main() {
 	<-sigChan                              // 시그널이 들어올 때까지 대기
 	log.Println("Shutting down server...") // 종료 로그 출력
 
+	// Graceful shutdown 시작
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
 	// CoAP 서버 종료
 	coapServer.Stop()
 
-	// 서버 정상 종료를 위한 컨텍스트(최대 30초 대기)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// 서버 종료 시도
-	if err := server.Shutdown(ctx); err != nil {
+	// HTTP 서버 종료
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	}
 
-	log.Println("Server stopped") // 서버 종료 완료 로그
+	log.Println("All services stopped successfully") // 모든 서비스 종료 완료
 }

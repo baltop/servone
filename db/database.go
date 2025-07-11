@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -29,6 +30,14 @@ func InitDB(connStr string) error {
 	}
 
 	fmt.Println("Database connection pool established.")
+	return nil
+}
+
+// CloseDB closes the database connection pool
+func CloseDB() error {
+	if DbPool != nil {
+		return DbPool.Close()
+	}
 	return nil
 }
 
@@ -110,12 +119,67 @@ func SaveToDB(url string, data map[string]interface{}, params map[string]string,
 	}
 }
 
+// SaveToDBWithError is a version of SaveToDB that returns errors
+func SaveToDBWithError(url string, data map[string]interface{}, params map[string]string, publisher kafka.KafkaPublisherInterface) error {
+	// Merge data and params, prioritizing existing keys in data
+	mergedData := make(map[string]interface{})
+	for k, v := range data {
+		mergedData[k] = v
+	}
+	for k, v := range params {
+		if _, ok := mergedData[k]; !ok {
+			mergedData[k] = v
+		}
+	}
+
+	mergeDataJSON, err := json.Marshal(mergedData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data to JSON: %w", err)
+	}
+
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("failed to marshal params to JSON: %w", err)
+	}
+
+	insertSQL := `
+	INSERT INTO client_data (url, data, parameters, created_at)
+	VALUES ($1, $2, $3, $4);`
+
+	kafkaData := map[string]interface{}{
+		"data":     mergedData,
+		"params":   params,
+		"url":      url,
+		"received": time.Now().UnixNano(),
+	}
+
+	// Use context with timeout for database operations
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = DbPool.ExecContext(ctx, insertSQL, url, mergeDataJSON, paramsJSON, time.Now().UnixNano())
+	if err != nil {
+		return fmt.Errorf("failed to insert data into database: %w", err)
+	}
+	
+	if publisher != nil {
+		// Sanitize the topic before publishing
+		topic := kafka.SanitizeTopic(url)
+		publisher.Publish(topic, kafkaData)
+	}
+	
+	return nil
+}
+
 func SaveMQTTMessage(topic string, payload string, receivedTime int64) {
 	insertSQL := `
 	INSERT INTO mqtt_messages (topic, payload, created_at)
 	VALUES ($1, $2, $3);`
 
-	_, err := DbPool.Exec(insertSQL, topic, payload, receivedTime)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := DbPool.ExecContext(ctx, insertSQL, topic, payload, receivedTime)
 	if err != nil {
 		log.Printf("Failed to insert data into database: %v", err)
 	}
