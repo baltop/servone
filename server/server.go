@@ -1,9 +1,10 @@
 // 동적으로 라우트와 응답을 처리하는 HTTP 서버 구현
-package main
+package server
 
 // 필요한 패키지 임포트
 import (
 	"bytes"         // 바이트 버퍼 및 변환
+	"context"       // 컨텍스트 제어
 	"encoding/json" // JSON 파싱 및 인코딩
 	"io"            // 요청 바디 읽기
 	"log"           // 로그 출력
@@ -181,4 +182,9 @@ func (ds *DynamicServer) Reload(newConfig *config.Config) {
 	ds.server.Handler = ds.router // 서버 핸들러 갱신
 
 	log.Println("Server configuration reloaded successfully") // 재로드 완료 로그
+}
+
+// Shutdown gracefully shuts down the server
+func (ds *DynamicServer) Shutdown(ctx context.Context) error {
+	return ds.server.Shutdown(ctx)
 }

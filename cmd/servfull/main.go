@@ -14,7 +14,7 @@ import (
 	"servone/config"
 	"servone/db"
 	"servone/kafka"
-	"servone/mqtt"
+	"servone/mqttclient"
 	"servone/server"
 )
 
@@ -41,7 +41,7 @@ func main() {
 	defer publisher.Close()
 
 	// MQTT Client 생성 및 연결
-	mqttClient, err := mqtt.NewMQTTClient(cfg.MQTT.Broker, cfg.MQTT.ClientID, publisher, cfg)
+	mqttClient, err := mqttclient.NewMQTTClient(cfg.MQTT.Broker, cfg.MQTT.ClientID, publisher, cfg)
 	if err != nil {
 		log.Fatalf("Failed to create MQTT client: %v", err)
 	}
@@ -86,7 +86,7 @@ func main() {
 	defer cancel()
 
 	// 서버 종료 시도
-	if err := server.server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	}
 

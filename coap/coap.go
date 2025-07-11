@@ -99,7 +99,7 @@ func (cs *CoapServer) createHandler(endpoint config.EndpointConfig, method strin
 				if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
 					log.Printf("CoAP Request Log: %s", string(logBytes))
 				}
-				go func() { db.SaveToDB(cs.db, endpoint.Path, jsonData, nil, cs.publisher) }()
+				go func() { db.SaveToDB(endpoint.Path, jsonData, nil, cs.publisher) }()
 
 			} else {
 				log.Printf("CoAP %s %s - %d | Request body: %s", r.Code(), endpoint.Path, endpoint.Response.Status, string(bodyBytes))
