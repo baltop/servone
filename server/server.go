@@ -51,11 +51,11 @@ func NewDynamicServer(cfg *config.Config, publisher kafka.KafkaPublisherInterfac
 	ds.setupRoutes() // 라우트 설정
 
 	ds.server = &http.Server{
-		Addr:         ds.config.Server.Host + ":" + ds.config.Server.Port, // 서버 주소 및 포트 지정
-		Handler:      ds.router,                                           // 라우터를 핸들러로 지정
-		ReadTimeout:  30 * time.Second,                                    // 읽기 타임아웃
-		WriteTimeout: 30 * time.Second,                                    // 쓰기 타임아웃
-		IdleTimeout:  120 * time.Second,                                   // 유휴 타임아웃
+		Addr:         ds.config.Rest.Host + ":" + ds.config.Rest.Port, // 서버 주소 및 포트 지정
+		Handler:      ds.router,                                       // 라우터를 핸들러로 지정
+		ReadTimeout:  30 * time.Second,                                // 읽기 타임아웃
+		WriteTimeout: 30 * time.Second,                                // 쓰기 타임아웃
+		IdleTimeout:  120 * time.Second,                               // 유휴 타임아웃
 	}
 
 	return ds
@@ -63,7 +63,7 @@ func NewDynamicServer(cfg *config.Config, publisher kafka.KafkaPublisherInterfac
 
 // 설정에 정의된 모든 엔드포인트를 라우터에 등록
 func (ds *DynamicServer) setupRoutes() {
-	for _, endpoint := range ds.config.Endpoints {
+	for _, endpoint := range ds.config.Rest.Endpoints {
 		ds.addRoute(endpoint)
 	}
 	ds.router.Handle("/metrics", promhttp.Handler()).Methods("GET")

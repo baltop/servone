@@ -74,7 +74,7 @@ func (cs *CoapServer) start() {
 
 // setupRoutes는 설정 파일에 정의된 엔���포인트를 기반으로 CoAP 라우트를 설정합니다.
 func (cs *CoapServer) setupRoutes() {
-	for _, endpoint := range cs.config.Endpoints {
+	for _, endpoint := range cs.config.Coap.Endpoints {
 		cs.addRoute(endpoint)
 	}
 }

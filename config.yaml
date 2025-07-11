@@ -1,14 +1,6 @@
 database:
   connection_string: "postgresql://smart:smart1234@localhost:5432/strange?sslmode=disable"
 
-server:
-  host: "0.0.0.0"
-  port: "8090"
-
-coap:
-  host: "0.0.0.0"
-  port: "5683"
-
 kafka:
   brokers:
     - "localhost:9092"
@@ -18,7 +10,7 @@ mqtt:
   client_id: "smart-mqtt-client"
 
 snmp:
-  port: 161
+  port: 1161
   timeout: 5
   retries: 3
   username: "snmpuser"
@@ -28,69 +20,88 @@ snmp:
   priv_passphrase: "privpassword"
   trap_enabled: true
   trap_host: "0.0.0.0"
-  trap_port: 162
+  trap_port: 1162
 
-endpoints:
-  - path: "/api/users"
-    method: "GET"
-    response:
-      status: 200
-      body: '{"users": [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]}'
-      headers:
-        Content-Type: "application/json"
+
+server:
+  host: "0.0.0.0"
+  port: "8090"
   
-  - path: "/api/users"
-    method: "POST"
-    response:
-      status: 201
-      body: '{"result": "success"}'
-      headers:
-        Content-Type: "application/json"
-  
-  - path: "/api/health"
-    method: "GET"
-    response:
-      status: 200
-      body: '{"status": "OK", "timestamp": "{{.timestamp}}"}'
-      headers:
-        Content-Type: "application/json"
-  
-  - path: "/api/products/{id}"
-    method: "POST"
-    response:
-      status: 200
-      body: '{"result": "success"}'
-      headers:
-        Content-Type: "application/json"
+rest:
+  endpoints:
+    - path: "/api/users"
+      method: "GET"
+      response:
+        status: 200
+        body: '{"users": [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]}'
+        headers:
+          Content-Type: "application/json"
+    
+    - path: "/api/users"
+      method: "POST"
+      response:
+        status: 201
+        body: '{"result": "success"}'
+        headers:
+          Content-Type: "application/json"
+    
+    - path: "/api/health"
+      method: "GET"
+      response:
+        status: 200
+        body: '{"status": "OK", "timestamp": "{{.timestamp}}"}'
+        headers:
+          Content-Type: "application/json"
+    
+    - path: "/api/products/{id}"
+      method: "POST"
+      response:
+        status: 200
+        body: '{"result": "success"}'
+        headers:
+          Content-Type: "application/json"
 
-  - path: "/api/tempo"
-    method: "POST"
-    response:
-      status: 201
-      body: '{"result": "success"}'
-      headers:
-        Content-Type: "application/json"
+    - path: "/api/tempo"
+      method: "POST"
+      response:
+        status: 201
+        body: '{"result": "success"}'
+        headers:
+          Content-Type: "application/json"
 
-  - path: "/hands/left"
-    method: "POST"
-    response:
-      status: 201
-      body: '{"result": "success"}'
-      headers:
-        Content-Type: "application/json"
+    - path: "/hands/left"
+      method: "POST"
+      response:
+        status: 201
+        body: '{"result": "success"}'
+        headers:
+          Content-Type: "application/json"
 
-  - path: "/api/snmp/get"
-    method: "POST"
-    response:
-      status: 200
-      body: '{"status": "success", "message": "SNMP GET operation triggered"}'
-      headers:
-        Content-Type: "application/json"
+    - path: "/api/snmp/get"
+      method: "POST"
+      response:
+        status: 200
+        body: '{"status": "success", "message": "SNMP GET operation triggered"}'
+        headers:
+          Content-Type: "application/json"
 
-  - path: "/api/snmp/walk"
-    method: "POST"
-    response:
-      status: 200
-      body: '{"status": "success", "message": "SNMP WALK operation triggered"}'
-      headers:
-        Content-Type: "application/json"
+    - path: "/api/snmp/walk"
+      method: "POST"
+      response:
+        status: 200
+        body: '{"status": "success", "message": "SNMP WALK operation triggered"}'
+        headers:
+          Content-Type: "application/json"
+
+
+coap:
+  host: "0.0.0.0"
+  port: "5683"
+  endpoints: 
+    - path: "/api/users"
+      method: "GET"
+      response:
+        status: 200
+        body: '{"users": [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]}'
+        headers:
+          Content-Type: "application/json"
