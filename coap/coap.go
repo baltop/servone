@@ -55,7 +55,7 @@ func (cs *CoapServer) start() {
 		cs.mu.Lock()
 		cs.listening = true
 		cs.mu.Unlock()
-		
+
 		if err := coap.ListenAndServe("udp", addr, cs.router); err != nil {
 			// Check if server was stopped intentionally
 			select {
@@ -65,7 +65,7 @@ func (cs *CoapServer) start() {
 				log.Printf("CoAP server error: %v", err)
 			}
 		}
-		
+
 		cs.mu.Lock()
 		cs.listening = false
 		cs.mu.Unlock()
@@ -96,56 +96,54 @@ func (cs *CoapServer) createHandler(endpoint config.EndpointConfig, method strin
 			return
 		}
 
-		path, err := r.Options().Path()
-		if err != nil {
-			log.Printf("Cannot get path: %v", err)
-			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("Cannot get path")))
+		// path, err := r.Options().Path()
+		// if err != nil {
+		// 	log.Printf("Cannot get path: %v", err)
+		// 	w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("Cannot get path")))
+		// 	return
+		// }
+
+		if r.Body() == nil {
+			log.Printf("CoAP %s %s - %d | No request body", r.Code(), endpoint.Path, endpoint.Response.Status)
 			return
 		}
 
-		var bodyBytes []byte
-		if r.Body() != nil {
-			bodyBytes, err = io.ReadAll(r.Body())
-			if err != nil {
-				log.Printf("Cannot read body: %v", err)
-				w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("Cannot read body")))
-				return
-			}
+		bodyBytes, err := io.ReadAll(r.Body())
+		if err != nil {
+			log.Printf("Cannot read body: %v", err)
+			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("Cannot read body")))
+			return
 		}
 
 		if r.Code() == codes.POST && len(bodyBytes) > 0 {
 			var jsonData map[string]interface{}
-			if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
-				logPayload := make(map[string]interface{})
-				logPayload["url"] = endpoint.Path
-				logPayload["data"] = jsonData
-				logPayload["path_params"] = path
 
-				if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
-					log.Printf("CoAP Request Log: %s", string(logBytes))
-				}
-				// Save to database and publish to Kafka
-				go func() {
-					receivedTime := time.Now().UnixNano()
-					if err := db.SaveCoapMessage(endpoint.Path, string(bodyBytes), r.Code().String(), receivedTime); err != nil {
-						log.Printf("Failed to save CoAP message to database: %v", err)
-					}
-					
-					// Publish to Kafka
-					kafkaPayload := map[string]interface{}{
-						"path":     endpoint.Path,
-						"method":   r.Code().String(),
-						"data":     jsonData,
-						"received": receivedTime,
-					}
-					if err := cs.publisher.Publish("coap."+endpoint.Path, kafkaPayload); err != nil {
-						log.Printf("Failed to publish CoAP message to Kafka: %v", err)
-					}
-				}()
-
-			} else {
-				log.Printf("CoAP %s %s - %d | Request body: %s", r.Code(), endpoint.Path, endpoint.Response.Status, string(bodyBytes))
+			// bodyBytes가 JSON 형식이 아니면 "data" 필드에 원본 바이트를 저장
+			if err := json.Unmarshal(bodyBytes, &jsonData); err != nil {
+				jsonData = map[string]interface{}{"coapbody": string(bodyBytes)}
 			}
+			// if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
+			// 	log.Printf("CoAP Request Log: %s", string(logBytes))
+			// }
+			// Save to database and publish to Kafka
+			go func() {
+				receivedTime := time.Now().UnixNano()
+				if err := db.SaveCoapMessage(endpoint.Path, string(bodyBytes), r.Code().String(), receivedTime); err != nil {
+					log.Printf("Failed to save CoAP message to database: %v", err)
+				}
+
+				// Publish to Kafka
+				kafkaPayload := map[string]interface{}{
+					"path":     endpoint.Path,
+					"method":   r.Code().String(),
+					"data":     jsonData,
+					"received": receivedTime,
+				}
+				if err := cs.publisher.Publish("coap"+endpoint.Path, kafkaPayload); err != nil {
+					log.Printf("Failed to publish CoAP message to Kafka: %v", err)
+				}
+			}()
+
 		} else if len(bodyBytes) > 0 {
 			log.Printf("CoAP %s %s - %d | Request body: %s", r.Code(), endpoint.Path, endpoint.Response.Status, string(bodyBytes))
 		} else {
@@ -204,7 +202,7 @@ func (cs *CoapServer) Stop() {
 	log.Println("Stopping CoAP server...")
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	
+
 	if cs.listening {
 		close(cs.stopChan)
 		// Note: go-coap v3 doesn't provide a way to stop a running server
@@ -216,16 +214,16 @@ func (cs *CoapServer) Stop() {
 // Reload는 새로운 설정으로 CoAP 서버를 재시작합니다.
 func (cs *CoapServer) Reload(newConfig *config.Config) {
 	log.Println("Reloading CoAP server...")
-	
+
 	// Stop the current server
 	cs.Stop()
-	
+
 	// Update configuration
 	cs.config = newConfig
 	cs.router = mux.NewRouter()
 	cs.setupRoutes()
 	cs.stopChan = make(chan struct{})
-	
+
 	// Start the server again
 	cs.start()
 }

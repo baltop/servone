@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/twmb/franz-go/pkg/kgo"
 	"servone/metrics"
+
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // 전역 정규표현식 컴파일 (성능 최적화)
@@ -25,6 +26,7 @@ type KafkaPublisher struct {
 func NewKafkaPublisher(brokers []string) (*KafkaPublisher, error) {
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(brokers...),
+		kgo.AllowAutoTopicCreation(),
 	}
 
 	client, err := kgo.NewClient(opts...)
@@ -46,10 +48,10 @@ func (p *KafkaPublisher) Publish(topic string, data map[string]interface{}) erro
 	}
 
 	record := &kgo.Record{Topic: sanitizedTopic, Value: payload}
-	
+
 	// Create a channel to wait for the async produce result
 	resultChan := make(chan error, 1)
-	
+
 	p.client.Produce(context.Background(), record, func(r *kgo.Record, err error) {
 		if err != nil {
 			log.Printf("Failed to produce message to Kafka: %v", err)
@@ -58,7 +60,7 @@ func (p *KafkaPublisher) Publish(topic string, data map[string]interface{}) erro
 			resultChan <- nil
 		}
 	})
-	
+
 	// Wait for the result with a timeout
 	select {
 	case err := <-resultChan:

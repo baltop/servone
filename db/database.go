@@ -1,6 +1,6 @@
 // Package db provides database operations for the servone application.
 // It is currently transitioning from global variables to dependency injection.
-// 
+//
 // Migration path:
 // 1. Use NewDatabase() to create a database instance
 // 2. Pass the instance to services that need it
@@ -17,8 +17,9 @@ import (
 	"servone/kafka"
 	"time"
 
-	_ "github.com/lib/pq"
 	"servone/metrics"
+
+	_ "github.com/lib/pq"
 )
 
 // Database represents the database connection and operations
@@ -42,11 +43,11 @@ func NewDatabase(connStr string) (*Database, error) {
 	}
 
 	fmt.Println("Database connection pool established.")
-	
+
 	// Start monitoring connection pool metrics
 	database := &Database{db: db}
 	go database.monitorConnectionPool()
-	
+
 	return database, nil
 }
 
@@ -54,7 +55,7 @@ func NewDatabase(connStr string) (*Database, error) {
 func (d *Database) monitorConnectionPool() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		stats := d.db.Stats()
 		metrics.UpdateDBConnectionMetrics(
@@ -120,7 +121,7 @@ func (d *Database) createClientDataTable() error {
 		parameters JSONB,
 		created_at BIGINT
 	);`
-	
+
 	_, err := d.db.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create 'client_data' table: %w", err)
@@ -137,7 +138,7 @@ func (d *Database) createMQTTMessagesTable() error {
 		payload TEXT,
 		created_at BIGINT
 	);`
-	
+
 	_, err := d.db.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create 'mqtt_messages' table: %w", err)
@@ -155,7 +156,7 @@ func (d *Database) createCoapMessagesTable() error {
 		method TEXT,
 		created_at BIGINT
 	);`
-	
+
 	_, err := d.db.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create 'coap_messages' table: %w", err)
@@ -172,7 +173,7 @@ func (d *Database) createSNMPDataTable() error {
 		data JSONB,
 		created_at BIGINT
 	);`
-	
+
 	_, err := d.db.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create 'snmp_data' table: %w", err)
@@ -335,7 +336,7 @@ func SaveToDBWithError(url string, data map[string]interface{}, params map[strin
 	if err != nil {
 		return fmt.Errorf("failed to insert data into database: %w", err)
 	}
-	
+
 	if publisher != nil {
 		// Sanitize the topic before publishing
 		topic := kafka.SanitizeTopic(url)
@@ -344,7 +345,7 @@ func SaveToDBWithError(url string, data map[string]interface{}, params map[strin
 			// Don't return error as we've already saved to DB
 		}
 	}
-	
+
 	return nil
 }
 
@@ -446,7 +447,7 @@ func (d *Database) SaveToDBWithError(url string, data map[string]interface{}, pa
 	if err != nil {
 		return fmt.Errorf("failed to insert data into database: %w", err)
 	}
-	
+
 	if publisher != nil {
 		// Sanitize the topic before publishing
 		topic := kafka.SanitizeTopic(url)
@@ -455,7 +456,7 @@ func (d *Database) SaveToDBWithError(url string, data map[string]interface{}, pa
 			// Don't return error as we've already saved to DB
 		}
 	}
-	
+
 	return nil
 }
 

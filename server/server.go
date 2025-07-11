@@ -19,9 +19,10 @@ import (
 	"text/template" // 템플릿 처리
 	"time"          // 시간 관련
 
+	"servone/snmpclient"
+
 	"github.com/gorilla/mux" // 라우터
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"servone/snmpclient"
 )
 
 // 동적으로 라우트와 응답을 처리하는 서버 구조체
@@ -89,7 +90,7 @@ func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.Hand
 
 		// 요청 크기 제한 (10MB)
 		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
-		
+
 		var bodyBytes []byte
 		var err error
 		if r.Body != nil {
@@ -178,7 +179,7 @@ func (ds *DynamicServer) processTemplate(body string, vars map[string]string) st
 			log.Printf("Template parse error: %v", err)
 			return body
 		}
-		
+
 		ds.templateMux.Lock()
 		ds.templates[body] = tmpl
 		ds.templateMux.Unlock()

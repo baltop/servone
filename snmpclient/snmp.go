@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"servone/config"
-	"servone/db"
 	"servone/kafka"
 	"time"
 
@@ -67,7 +66,7 @@ func (c *SNMPClient) GetV3(target string, oids []string) error {
 
 	// Process and store results
 	c.processResults("get", target, result.Variables)
-	
+
 	return nil
 }
 
@@ -102,7 +101,7 @@ func (c *SNMPClient) WalkV3(target string, rootOid string) error {
 
 	// Process and store results
 	c.processResults("walk", target, pdus)
-	
+
 	return nil
 }
 
@@ -110,7 +109,7 @@ func (c *SNMPClient) WalkV3(target string, rootOid string) error {
 func (c *SNMPClient) startTrapListener() error {
 	c.trapListener = gosnmp.NewTrapListener()
 	c.trapListener.OnNewTrap = c.handleTrap
-	
+
 	// Configure listener parameters - Params expects a pointer to GoSNMP
 	c.trapListener.Params = &gosnmp.GoSNMP{
 		Version:            gosnmp.Version3,
@@ -123,7 +122,7 @@ func (c *SNMPClient) startTrapListener() error {
 	go func() {
 		addr := fmt.Sprintf("%s:%d", c.config.TrapHost, c.config.TrapPort)
 		log.Printf("Starting SNMP trap listener on %s", addr)
-		
+
 		err := c.trapListener.Listen(addr)
 		if err != nil {
 			log.Printf("SNMP trap listener error: %v", err)
@@ -136,7 +135,7 @@ func (c *SNMPClient) startTrapListener() error {
 // handleTrap processes incoming SNMP traps
 func (c *SNMPClient) handleTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
 	log.Printf("Received SNMP trap from %s", addr.String())
-	
+
 	// Process trap data
 	c.processResults("trap", addr.String(), packet.Variables)
 }
@@ -188,7 +187,7 @@ func (c *SNMPClient) getSecurityParams() *gosnmp.UsmSecurityParameters {
 // processResults stores SNMP results in database and publishes to Kafka
 func (c *SNMPClient) processResults(operation string, source string, pdus []gosnmp.SnmpPDU) {
 	receivedTime := time.Now().UnixNano()
-	
+
 	// Prepare data for storage
 	var results []map[string]interface{}
 	for _, pdu := range pdus {
@@ -208,9 +207,11 @@ func (c *SNMPClient) processResults(operation string, source string, pdus []gosn
 	}
 
 	// Save to database
-	if err := db.SaveSNMPData(source, data, receivedTime); err != nil {
-		log.Printf("Failed to save SNMP data to DB: %v", err)
-	}
+	// if err := db.SaveSNMPData(source, data, receivedTime); err != nil {
+
+	// if err := db.SaveSNMPData(source, data, receivedTime); err != nil {
+	// 	log.Printf("Failed to save SNMP data to DB: %v", err)
+	// }
 
 	// Publish to Kafka
 	kafkaTopic := fmt.Sprintf("snmp.%s.%s", operation, kafka.SanitizeTopic(source))
@@ -230,7 +231,6 @@ func (c *SNMPClient) getValueString(pdu gosnmp.SnmpPDU) string {
 		return fmt.Sprintf("%v", pdu.Value)
 	}
 }
-
 
 // Stop gracefully stops the SNMP client
 func (c *SNMPClient) Stop() {
