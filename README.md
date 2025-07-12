@@ -1,3 +1,8 @@
+
+
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/baltop/servone?utm_source=oss&utm_medium=github&utm_campaign=baltop%2Fservone&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
+
 # Servone - 통합 프로토콜 서버
 
 Servone은 다양한 프로토콜을 지원하는 유연하고 확장 가능한 통합 서버 애플리케이션입니다. 주요 목표는 단일 애플리케이션 내에서 HTTP, CoAP, MQTT, SNMP와 같은 여러 통신 프로토콜을 처리하는 중앙 집중식 솔루션을 제공하는 것입니다.
