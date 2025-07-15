@@ -85,13 +85,6 @@ rest:
         headers:
           Content-Type: "application/json"
 
-    - path: "/api/snmp/get"
-      method: "POST"
-      response:
-        status: 200
-        body: '{"status": "success", "message": "SNMP GET operation triggered"}'
-        headers:
-          Content-Type: "application/json"
 
 
 
@@ -103,4 +96,7 @@ coap:
       method: "POST"
       response:
         status: 200
-
+    - path: "/hands/left"
+      method: "POST"
+      response:
+        status: 200
