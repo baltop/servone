@@ -46,22 +46,9 @@ endpoints:
 		}
 
 		expectedConfig := &Config{
-			Server:   ServerConfig{Port: "8080", Host: "localhost"},
+			Rest:     RestConfig{Port: "8080", Host: "localhost"},
 			Database: DatabaseConfig{ConnectionString: "user=test password=test dbname=test sslmode=disable"},
 			Kafka:    KafkaConfig{Brokers: []string{"localhost:9092"}},
-			Endpoints: []EndpointConfig{
-				{
-					Path:   "/test",
-					Method: "GET",
-					Response: ResponseConfig{
-						Status: 200,
-						Body:   "Hello, World!",
-						Headers: map[string]string{
-							"Content-Type": "text/plain",
-						},
-					},
-				},
-			},
 		}
 
 		if !reflect.DeepEqual(config, expectedConfig) {

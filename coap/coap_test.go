@@ -39,16 +39,6 @@ func TestCoapServer(t *testing.T) {
 			Host: "localhost",
 			Port: "5689", // 테스트용 포트
 		},
-		Endpoints: []config.EndpointConfig{
-			{
-				Path:   "/test",
-				Method: "POST",
-				Response: config.ResponseConfig{
-					Status: 205, // CoAP Content
-					Body:   "OK",
-				},
-			},
-		},
 	}
 
 	// 모의 Kafka publisher 설정

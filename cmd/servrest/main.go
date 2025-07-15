@@ -13,7 +13,6 @@ import (
 	"servone/db"
 	"servone/kafka"
 	"servone/server"
-	"servone/snmpclient"
 )
 
 func main() {
@@ -44,16 +43,6 @@ func main() {
 	}
 	defer publisher.Close()
 
-	// SNMP Client 생성 (REST API에서 SNMP 기능 사용 가능)
-	snmpClient, err := snmpclient.NewSNMPClient(&cfg.SNMP, db.DbPool, publisher)
-	if err != nil {
-		log.Fatalf("Failed to create SNMP client: %v", err)
-	}
-	defer snmpClient.Stop()
-	
-	// Set global SNMP client for HTTP handlers
-	snmpclient.SetGlobalSNMPClient(snmpClient)
-
 	// HTTP REST API 서버만 생성
 	server := server.NewDynamicServer(cfg, publisher)
 
@@ -76,7 +65,7 @@ func main() {
 
 	// REST API 서버 실행
 	go func() {
-		log.Println("Starting REST API server on port", cfg.Server.Port)
+		log.Println("Starting REST API server on port", cfg.Rest.Port)
 		if err := server.Start(); err != nil {
 			log.Fatalf("REST API server failed to start: %v", err)
 		}
