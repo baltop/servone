@@ -16,6 +16,7 @@ type Config struct {
 	Kafka    KafkaConfig    `yaml:"kafka"`
 	MQTT     MQTTConfig     `yaml:"mqtt"`
 	SNMP     SNMPConfig     `yaml:"snmp"`
+	SNMPTrap SNMPTrapConfig `yaml:"snmptrap"`
 }
 
 // RestConfig 구조체 추가
@@ -43,8 +44,6 @@ type DatabaseConfig struct {
 	ConnectionString string `yaml:"connection_string"` // 데이터베이스 연결 문자열
 }
 
-
-
 // Kafka 관련 설정 구조체
 type KafkaConfig struct {
 	Brokers []string `yaml:"brokers"`
@@ -52,17 +51,29 @@ type KafkaConfig struct {
 
 // SNMP 관련 설정 구조체
 type SNMPConfig struct {
+	Port           int      `yaml:"port"`
+	Timeout        int      `yaml:"timeout"`
+	Retries        int      `yaml:"retries"`
+	Username       string   `yaml:"username"`
+	AuthProtocol   string   `yaml:"auth_protocol"`
+	AuthPassphrase string   `yaml:"auth_passphrase"`
+	PrivProtocol   string   `yaml:"priv_protocol"`
+	PrivPassphrase string   `yaml:"priv_passphrase"`
+	Term           int      `yaml:"term"`
+	Targets        []string `yaml:"targets"`
+	RootOid        string   `yaml:"root_oid"`
+}
+
+// SNMPTrap 관련 설정 구조체
+type SNMPTrapConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Host           string `yaml:"host"`
 	Port           int    `yaml:"port"`
-	Timeout        int    `yaml:"timeout"`
-	Retries        int    `yaml:"retries"`
 	Username       string `yaml:"username"`
 	AuthProtocol   string `yaml:"auth_protocol"`
 	AuthPassphrase string `yaml:"auth_passphrase"`
 	PrivProtocol   string `yaml:"priv_protocol"`
 	PrivPassphrase string `yaml:"priv_passphrase"`
-	TrapEnabled    bool   `yaml:"trap_enabled"`
-	TrapHost       string `yaml:"trap_host"`
-	TrapPort       int    `yaml:"trap_port"`
 }
 
 // 각 엔드포인트(라우트)별 설정 구조체

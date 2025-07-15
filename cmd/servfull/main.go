@@ -57,18 +57,25 @@ func main() {
 	}
 
 	// 동적으로 설정을 반영하는 서버 인스턴스 생성
-	server := server.NewDynamicServer(cfg, publisher)
+
 	coapServer := coap.NewCoapServer(cfg, publisher)
-	
-	// SNMP Client 생성
-	snmpClient, err := snmpclient.NewSNMPClient(&cfg.SNMP, db.DbPool, publisher)
-	if err != nil {
-		log.Fatalf("Failed to create SNMP client: %v", err)
-	}
+
+	// SNMP Client for GET and periodic WALK
+	snmpClient := snmpclient.NewSNMPClient(&cfg.SNMP, db.DbPool, publisher)
+	snmpClient.StartWalkScheduler() // Start the periodic walk
 	defer snmpClient.Stop()
-	
-	// Set global SNMP client for HTTP handlers
+
+	// SNMP Trap Server
+	trapServer := snmpclient.NewTrapServer(&cfg.SNMPTrap, publisher, db.DbPool)
+	if err := trapServer.Start(); err != nil {
+		log.Fatalf("Failed to start SNMP trap server: %v", err)
+	}
+	defer trapServer.Stop()
+
+	// Set global SNMP client for HTTP handlers that still exist (e.g., GET)
 	snmpclient.SetGlobalSNMPClient(snmpClient)
+
+	server := server.NewDynamicServer(cfg, publisher)
 
 	// 설정 파일 변경 감시를 위한 watcher 생성
 	watcher, err := config.NewConfigWatcher(configPath, server, coapServer)

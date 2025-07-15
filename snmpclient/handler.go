@@ -38,10 +38,8 @@ func HandleSNMPRequest(w http.ResponseWriter, r *http.Request, operation string)
 	switch operation {
 	case "get":
 		handleGet(w, reqData)
-	case "walk":
-		handleWalk(w, reqData)
 	default:
-		http.Error(w, "Unknown SNMP operation", http.StatusBadRequest)
+		http.Error(w, "Unknown or unsupported SNMP operation", http.StatusBadRequest)
 	}
 }
 
@@ -94,40 +92,41 @@ func handleGet(w http.ResponseWriter, data map[string]interface{}) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func handleWalk(w http.ResponseWriter, data map[string]interface{}) {
-	target, ok := data["target"].(string)
-	if !ok || target == "" {
-		http.Error(w, "Target is required", http.StatusBadRequest)
-		return
-	}
+// DEPRECATED: Walk is now handled by a periodic scheduler.
+// func handleWalk(w http.ResponseWriter, data map[string]interface{}) {
+// 	target, ok := data["target"].(string)
+// 	if !ok || target == "" {
+// 		http.Error(w, "Target is required", http.StatusBadRequest)
+// 		return
+// 	}
 
-	rootOID, ok := data["root_oid"].(string)
-	if !ok || rootOID == "" {
-		http.Error(w, "root_oid is required", http.StatusBadRequest)
-		return
-	}
+// 	rootOID, ok := data["root_oid"].(string)
+// 	if !ok || rootOID == "" {
+// 		http.Error(w, "root_oid is required", http.StatusBadRequest)
+// 		return
+// 	}
 
-	// Execute SNMP WALK
-	err := GlobalSNMPClient.WalkV3(target, rootOID)
-	if err != nil {
-		log.Printf("SNMP WALK error: %v", err)
-		response := map[string]interface{}{
-			"status": "error",
-			"error":  err.Error(),
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
+// 	// Execute SNMP WALK
+// 	err := GlobalSNMPClient.WalkV3(target, rootOID)
+// 	if err != nil {
+// 		log.Printf("SNMP WALK error: %v", err)
+// 		response := map[string]interface{}{
+// 			"status": "error",
+// 			"error":  err.Error(),
+// 		}
+// 		w.Header().Set("Content-Type", "application/json")
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		json.NewEncoder(w).Encode(response)
+// 		return
+// 	}
 
-	// Success response
-	response := map[string]interface{}{
-		"status":   "success",
-		"message":  "SNMP WALK operation completed",
-		"target":   target,
-		"root_oid": rootOID,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
+// 	// Success response
+// 	response := map[string]interface{}{
+// 		"status":   "success",
+// 		"message":  "SNMP WALK operation completed",
+// 		"target":   target,
+// 		"root_oid": rootOID,
+// 	}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(response)
+// }

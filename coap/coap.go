@@ -125,6 +125,7 @@ func (cs *CoapServer) createHandler(endpoint config.EndpointConfig, method strin
 			// if logBytes, logErr := json.Marshal(logPayload); logErr == nil {
 			// 	log.Printf("CoAP Request Log: %s", string(logBytes))
 			// }
+			log.Printf("CoAP Request Log: %s", jsonData)
 			// Save to database and publish to Kafka
 			go func() {
 				receivedTime := time.Now().UnixNano()

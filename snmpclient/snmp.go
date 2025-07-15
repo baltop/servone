@@ -1,43 +1,87 @@
 package snmpclient
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"servone/config"
 	"servone/kafka"
+	"sync"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
 )
 
+// SNMPClient handles periodic SNMP WALK operations.
 type SNMPClient struct {
 	config         *config.SNMPConfig
 	db             *sql.DB
 	kafkaPublisher KafkaPublisherInterface
-	trapListener   *gosnmp.TrapListener
+	stop           chan struct{}
+	wg             sync.WaitGroup
+}
+
+// TrapServer handles incoming SNMP traps.
+type TrapServer struct {
+	config         *config.SNMPTrapConfig
+	db             *sql.DB
+	kafkaPublisher KafkaPublisherInterface
+	listener       *gosnmp.TrapListener
 }
 
 type KafkaPublisherInterface interface {
 	Publish(topic string, data map[string]interface{}) error
 }
 
-func NewSNMPClient(cfg *config.SNMPConfig, db *sql.DB, kafkaPublisher KafkaPublisherInterface) (*SNMPClient, error) {
-	client := &SNMPClient{
+// NewSNMPClient creates a new client for GET and periodic WALK operations.
+func NewSNMPClient(cfg *config.SNMPConfig, db *sql.DB, kafkaPublisher KafkaPublisherInterface) *SNMPClient {
+	return &SNMPClient{
 		config:         cfg,
 		db:             db,
 		kafkaPublisher: kafkaPublisher,
+		stop:           make(chan struct{}),
+	}
+}
+
+// StartWalkScheduler starts the periodic SNMP WALK operation in a goroutine.
+func (c *SNMPClient) StartWalkScheduler() {
+	if c.config.Term <= 0 {
+		log.Println("SNMP walk scheduler is disabled (term is zero or negative).")
+		return
 	}
 
-	// Start TRAP listener if enabled
-	if cfg.TrapEnabled {
-		if err := client.startTrapListener(); err != nil {
-			return nil, fmt.Errorf("failed to start trap listener: %w", err)
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		log.Printf("Starting SNMP walk scheduler with term %d seconds", c.config.Term)
+		ticker := time.NewTicker(time.Duration(c.config.Term) * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				log.Println("Executing scheduled SNMP walk.")
+				for _, target := range c.config.Targets {
+					if err := c.WalkV3(target, c.config.RootOid); err != nil {
+						log.Printf("Scheduled SNMP walk failed for target %s: %v", target, err)
+					}
+				}
+			case <-c.stop:
+				log.Println("Stopping SNMP walk scheduler.")
+				return
+			}
 		}
-	}
+	}()
+}
 
-	return client, nil
+// Stop gracefully stops the SNMP client and its scheduler.
+func (c *SNMPClient) Stop() {
+	close(c.stop)
+	c.wg.Wait()
+	log.Println("SNMP client stopped.")
 }
 
 // GetV3 performs SNMP v3 GET operation
@@ -48,7 +92,7 @@ func (c *SNMPClient) GetV3(target string, oids []string) error {
 		Version:            gosnmp.Version3,
 		SecurityModel:      gosnmp.UserSecurityModel,
 		MsgFlags:           gosnmp.AuthPriv,
-		SecurityParameters: c.getSecurityParams(),
+		SecurityParameters: getSecurityParams(c.config.Username, c.config.AuthProtocol, c.config.AuthPassphrase, c.config.PrivProtocol, c.config.PrivPassphrase),
 		Timeout:            time.Duration(c.config.Timeout) * time.Second,
 		Retries:            c.config.Retries,
 	}
@@ -64,9 +108,7 @@ func (c *SNMPClient) GetV3(target string, oids []string) error {
 		return fmt.Errorf("get failed: %w", err)
 	}
 
-	// Process and store results
-	c.processResults("get", target, result.Variables)
-
+	processResults("get", target, result.Variables, c.kafkaPublisher, c.db)
 	return nil
 }
 
@@ -78,7 +120,7 @@ func (c *SNMPClient) WalkV3(target string, rootOid string) error {
 		Version:            gosnmp.Version3,
 		SecurityModel:      gosnmp.UserSecurityModel,
 		MsgFlags:           gosnmp.AuthPriv,
-		SecurityParameters: c.getSecurityParams(),
+		SecurityParameters: getSecurityParams(c.config.Username, c.config.AuthProtocol, c.config.AuthPassphrase, c.config.PrivProtocol, c.config.PrivPassphrase),
 		Timeout:            time.Duration(c.config.Timeout) * time.Second,
 		Retries:            c.config.Retries,
 	}
@@ -99,32 +141,41 @@ func (c *SNMPClient) WalkV3(target string, rootOid string) error {
 		return fmt.Errorf("walk failed: %w", err)
 	}
 
-	// Process and store results
-	c.processResults("walk", target, pdus)
-
+	processResults("walk", target, pdus, c.kafkaPublisher, c.db)
 	return nil
 }
 
-// startTrapListener starts the SNMP v3 TRAP listener
-func (c *SNMPClient) startTrapListener() error {
-	c.trapListener = gosnmp.NewTrapListener()
-	c.trapListener.OnNewTrap = c.handleTrap
+// NewTrapServer creates a new server for receiving SNMP traps.
+func NewTrapServer(cfg *config.SNMPTrapConfig, kafkaPublisher KafkaPublisherInterface, db *sql.DB) *TrapServer {
+	return &TrapServer{
+		config:         cfg,
+		kafkaPublisher: kafkaPublisher,
+		db:             db,
+	}
+}
 
-	// Configure listener parameters - Params expects a pointer to GoSNMP
-	c.trapListener.Params = &gosnmp.GoSNMP{
+// Start starts the SNMP trap listener.
+func (ts *TrapServer) Start() error {
+	if !ts.config.Enabled {
+		log.Println("SNMP trap server is disabled.")
+		return nil
+	}
+
+	ts.listener = gosnmp.NewTrapListener()
+	ts.listener.OnNewTrap = ts.handleTrap
+	ts.listener.Params = &gosnmp.GoSNMP{
 		Version:            gosnmp.Version3,
 		SecurityModel:      gosnmp.UserSecurityModel,
 		MsgFlags:           gosnmp.AuthPriv,
-		SecurityParameters: c.getSecurityParams(),
+		SecurityParameters: getSecurityParams(ts.config.Username, ts.config.AuthProtocol, ts.config.AuthPassphrase, ts.config.PrivProtocol, ts.config.PrivPassphrase),
 	}
 
-	// Start listening in goroutine
-	go func() {
-		addr := fmt.Sprintf("%s:%d", c.config.TrapHost, c.config.TrapPort)
-		log.Printf("Starting SNMP trap listener on %s", addr)
+	addr := fmt.Sprintf("%s:%d", ts.config.Host, ts.config.Port)
+	log.Printf("Starting SNMP trap listener on %s", addr)
 
-		err := c.trapListener.Listen(addr)
-		if err != nil {
+	// Start listening in a goroutine to not block the main thread.
+	go func() {
+		if err := ts.listener.Listen(addr); err != nil {
 			log.Printf("SNMP trap listener error: %v", err)
 		}
 	}()
@@ -132,69 +183,73 @@ func (c *SNMPClient) startTrapListener() error {
 	return nil
 }
 
-// handleTrap processes incoming SNMP traps
-func (c *SNMPClient) handleTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
-	log.Printf("Received SNMP trap from %s", addr.String())
-
-	// Process trap data
-	c.processResults("trap", addr.String(), packet.Variables)
+// Stop gracefully stops the SNMP trap listener.
+func (ts *TrapServer) Stop() {
+	if ts.listener != nil {
+		ts.listener.Close()
+		log.Println("SNMP trap listener stopped.")
+	}
 }
 
-// getSecurityParams creates USM security parameters from config
-func (c *SNMPClient) getSecurityParams() *gosnmp.UsmSecurityParameters {
-	authProtocol := gosnmp.NoAuth
-	privProtocol := gosnmp.NoPriv
+// handleTrap processes incoming SNMP traps for the TrapServer.
+func (ts *TrapServer) handleTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
+	log.Printf("Received SNMP trap from %s", addr.String())
+	processResults("trap", addr.String(), packet.Variables, ts.kafkaPublisher, ts.db)
+}
 
-	switch c.config.AuthProtocol {
+// getSecurityParams creates USM security parameters from config.
+func getSecurityParams(username, authProtocol, authPassphrase, privProtocol, privPassphrase string) *gosnmp.UsmSecurityParameters {
+	authProto := gosnmp.NoAuth
+	switch authProtocol {
 	case "MD5":
-		authProtocol = gosnmp.MD5
+		authProto = gosnmp.MD5
 	case "SHA":
-		authProtocol = gosnmp.SHA
+		authProto = gosnmp.SHA
 	case "SHA224":
-		authProtocol = gosnmp.SHA224
+		authProto = gosnmp.SHA224
 	case "SHA256":
-		authProtocol = gosnmp.SHA256
+		authProto = gosnmp.SHA256
 	case "SHA384":
-		authProtocol = gosnmp.SHA384
+		authProto = gosnmp.SHA384
 	case "SHA512":
-		authProtocol = gosnmp.SHA512
+		authProto = gosnmp.SHA512
 	}
 
-	switch c.config.PrivProtocol {
+	privProto := gosnmp.NoPriv
+	switch privProtocol {
 	case "DES":
-		privProtocol = gosnmp.DES
+		privProto = gosnmp.DES
 	case "AES":
-		privProtocol = gosnmp.AES
+		privProto = gosnmp.AES
 	case "AES192":
-		privProtocol = gosnmp.AES192
+		privProto = gosnmp.AES192
 	case "AES256":
-		privProtocol = gosnmp.AES256
+		privProto = gosnmp.AES256
 	case "AES192C":
-		privProtocol = gosnmp.AES192C
+		privProto = gosnmp.AES192C
 	case "AES256C":
-		privProtocol = gosnmp.AES256C
+		privProto = gosnmp.AES256C
 	}
 
 	return &gosnmp.UsmSecurityParameters{
-		UserName:                 c.config.Username,
-		AuthenticationProtocol:   authProtocol,
-		AuthenticationPassphrase: c.config.AuthPassphrase,
-		PrivacyProtocol:          privProtocol,
-		PrivacyPassphrase:        c.config.PrivPassphrase,
+		UserName:                 username,
+		AuthenticationProtocol:   authProto,
+		AuthenticationPassphrase: authPassphrase,
+		PrivacyProtocol:          privProto,
+		PrivacyPassphrase:        privPassphrase,
 	}
 }
 
-// processResults stores SNMP results in database and publishes to Kafka
-func (c *SNMPClient) processResults(operation string, source string, pdus []gosnmp.SnmpPDU) {
+// processResults processes SNMP data and publishes it to Kafka.
+func processResults(operation string, source string, pdus []gosnmp.SnmpPDU, publisher KafkaPublisherInterface, db *sql.DB) {
 	receivedTime := time.Now().UnixNano()
 
-	// Prepare data for storage
 	var results []map[string]interface{}
 	for _, pdu := range pdus {
 		result := map[string]interface{}{
 			"oid":   pdu.Name,
 			"type":  pdu.Type.String(),
-			"value": c.getValueString(pdu),
+			"value": getValueString(pdu),
 		}
 		results = append(results, result)
 	}
@@ -206,22 +261,43 @@ func (c *SNMPClient) processResults(operation string, source string, pdus []gosn
 		"timestamp": receivedTime,
 	}
 
-	// Save to database
-	// if err := db.SaveSNMPData(source, data, receivedTime); err != nil {
-
-	// if err := db.SaveSNMPData(source, data, receivedTime); err != nil {
-	// 	log.Printf("Failed to save SNMP data to DB: %v", err)
-	// }
-
 	// Publish to Kafka
 	kafkaTopic := fmt.Sprintf("snmp.%s.%s", operation, kafka.SanitizeTopic(source))
-	if err := c.kafkaPublisher.Publish(kafkaTopic, data); err != nil {
+	if err := publisher.Publish(kafkaTopic, data); err != nil {
 		log.Printf("Failed to publish SNMP data to Kafka: %v", err)
+	}
+
+	// Save to database
+	if db != nil {
+		if err := saveSNMPDataToDB(db, source, data, receivedTime); err != nil {
+			log.Printf("Failed to save SNMP data to DB: %v", err)
+		}
 	}
 }
 
-// getValueString converts SNMP PDU value to string
-func (c *SNMPClient) getValueString(pdu gosnmp.SnmpPDU) string {
+// saveSNMPDataToDB saves SNMP data to the database.
+func saveSNMPDataToDB(db *sql.DB, host string, data map[string]interface{}, receivedTime int64) error {
+	dataJSON, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal SNMP data: %w", err)
+	}
+
+	insertSQL := `
+	INSERT INTO snmp_data (host, data, created_at)
+	VALUES ($1, $2, $3);`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = db.ExecContext(ctx, insertSQL, host, dataJSON, receivedTime)
+	if err != nil {
+		return fmt.Errorf("failed to insert SNMP data: %w", err)
+	}
+	return nil
+}
+
+// getValueString converts SNMP PDU value to a string representation.
+func getValueString(pdu gosnmp.SnmpPDU) string {
 	switch pdu.Type {
 	case gosnmp.OctetString:
 		return string(pdu.Value.([]byte))
@@ -229,13 +305,5 @@ func (c *SNMPClient) getValueString(pdu gosnmp.SnmpPDU) string {
 		return pdu.Value.(string)
 	default:
 		return fmt.Sprintf("%v", pdu.Value)
-	}
-}
-
-// Stop gracefully stops the SNMP client
-func (c *SNMPClient) Stop() {
-	if c.trapListener != nil {
-		c.trapListener.Close()
-		log.Println("SNMP trap listener stopped")
 	}
 }
