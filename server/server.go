@@ -88,12 +88,12 @@ func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.Hand
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r) // URL 경로 변수 추출
 
-		// 요청 크기 제한 (10MB)
-		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
-
 		var bodyBytes []byte
 		var err error
 		if r.Body != nil {
+			// 요청 크기 제한 (10MB)
+			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+			
 			bodyBytes, err = io.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
@@ -130,8 +130,11 @@ func (ds *DynamicServer) createHandler(endpoint config.EndpointConfig) http.Hand
 
 				// 데이터베이스에 저장 (에러 로깅 추가)
 				go func() {
-					if err := db.SaveToDBWithError(endpoint.Path, jsonData, vars, ds.publisher); err != nil {
-						log.Printf("Failed to save to database: %v", err)
+					// Only save to database if DbPool is initialized
+					if db.DbPool != nil {
+						if err := db.SaveToDBWithError(endpoint.Path, jsonData, vars, ds.publisher); err != nil {
+							log.Printf("Failed to save to database: %v", err)
+						}
 					}
 				}()
 

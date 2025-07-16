@@ -129,8 +129,11 @@ func (cs *CoapServer) createHandler(endpoint config.EndpointConfig, method strin
 			// Save to database and publish to Kafka
 			go func() {
 				receivedTime := time.Now().UnixNano()
-				if err := db.SaveCoapMessage(endpoint.Path, string(bodyBytes), r.Code().String(), receivedTime); err != nil {
-					log.Printf("Failed to save CoAP message to database: %v", err)
+				// Only save to database if DbPool is initialized
+				if db.DbPool != nil {
+					if err := db.SaveCoapMessage(endpoint.Path, string(bodyBytes), r.Code().String(), receivedTime); err != nil {
+						log.Printf("Failed to save CoAP message to database: %v", err)
+					}
 				}
 
 				// Publish to Kafka
