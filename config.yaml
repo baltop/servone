@@ -18,7 +18,7 @@ snmp:
   auth_passphrase: "Str0ng@uth3ntic@ti0n"
   priv_protocol: "AES"  # Options: "DES", "AES", "AES192", "AES256"
   priv_passphrase: "Str0ngPriv@cy"
-  term: 5
+  term: 30
   targets:
     - "127.0.0.1"
   root_oid: "1.3.6.1.2.1.1"
