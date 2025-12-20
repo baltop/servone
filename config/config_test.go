@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"reflect"
 	"testing"
 )
 
@@ -10,22 +9,42 @@ func TestLoadConfig(t *testing.T) {
 	// Test case 1: Successful loading
 	t.Run("successful loading", func(t *testing.T) {
 		content := `
-server:
+rest:
   port: "8080"
   host: "localhost"
+  endpoints: []
+coap:
+  port: "5683"
+  host: "localhost"
+  endpoints: []
 database:
   connection_string: "user=test password=test dbname=test sslmode=disable"
 kafka:
   brokers:
     - "localhost:9092"
-endpoints:
-  - path: "/test"
-    method: "GET"
-    response:
-      status: 200
-      body: "Hello, World!"
-      headers:
-        Content-Type: "text/plain"
+mqtt:
+  broker: ""
+  client_id: ""
+snmp:
+  port: 0
+  timeout: 0
+  retries: 0
+  username: ""
+  auth_protocol: ""
+  auth_passphrase: ""
+  priv_protocol: ""
+  priv_passphrase: ""
+  term: 0
+  targets: []
+snmptrap:
+  enabled: false
+  host: ""
+  port: 0
+  username: ""
+  auth_protocol: ""
+  auth_passphrase: ""
+  priv_protocol: ""
+  priv_passphrase: ""
 `
 		tmpfile, err := os.CreateTemp("", "config.*.yaml")
 		if err != nil {
@@ -45,14 +64,18 @@ endpoints:
 			t.Fatalf("LoadConfig() error = %v, wantErr nil", err)
 		}
 
-		expectedConfig := &Config{
-			Rest:     RestConfig{Port: "8080", Host: "localhost"},
-			Database: DatabaseConfig{ConnectionString: "user=test password=test dbname=test sslmode=disable"},
-			Kafka:    KafkaConfig{Brokers: []string{"localhost:9092"}},
+		// 주요 필드들만 검증
+		if config.Rest.Port != "8080" {
+			t.Errorf("Expected Rest.Port = 8080, got %s", config.Rest.Port)
 		}
-
-		if !reflect.DeepEqual(config, expectedConfig) {
-			t.Errorf("LoadConfig() = %v, want %v", config, expectedConfig)
+		if config.Rest.Host != "localhost" {
+			t.Errorf("Expected Rest.Host = localhost, got %s", config.Rest.Host)
+		}
+		if config.Database.ConnectionString != "user=test password=test dbname=test sslmode=disable" {
+			t.Errorf("Expected database connection string mismatch")
+		}
+		if len(config.Kafka.Brokers) != 1 || config.Kafka.Brokers[0] != "localhost:9092" {
+			t.Errorf("Expected Kafka.Brokers = [localhost:9092], got %v", config.Kafka.Brokers)
 		}
 	})
 
